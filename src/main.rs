@@ -1,4 +1,3 @@
-mod test_unit_helpers;
 mod unit_tests;
 
 use core::{panic};
@@ -12,37 +11,53 @@ use swc_ecma_parser::{Parser, StringInput, Syntax};
 use swc_ecma_parser::lexer::Lexer;
 use swc_ecma_ast::*;
 use swc_common::comments::{CommentKind, Comments, SingleThreadedComments};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashSet};
 use swc_common::comments::Comment;
 use walkdir::{DirEntry, WalkDir};
+use std::collections::HashMap;
+
+
+
 type ObjectIdent = String;
 
 
 
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Default)]
-struct GlobalContext{
-    parsed_modules: HashMap<String, ScopyModule>
+
+
+
+
+
+macro_rules! compiler_panic {
+    ($reason:expr) => {{
+        let reason = $reason;
+        eprintln!("Compiler panic: {reason}");
+        std::panic::panic_any(reason);
+    }};
 }
 
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Default)]
+
+#[derive(Debug, Clone, Default)]
+struct GlobalContext{
+    parsed_modules: HashMap<ObjectIdent, ScopyModule>
+}
+
+#[derive(Debug, Clone, Default)]
 struct CurrentContext {
     prev: Option<Box<CurrentContext>>,
     context_type: CurrentContextType,
     current_statements: Vec<Statement>,
-    current_module_name: String
+    current_module_name: ObjectIdent
 }
 
 
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct AstCurrentContext{
     module:Module,
-    name: String
+    name: ObjectIdent
 }
+
+
+
 
 
 
@@ -51,7 +66,7 @@ struct AstCurrentContext{
 struct AstGlobalContext{
     comments:SingleThreadedComments,
     cm: Lrc<SourceMap>,
-    ast_modules: HashMap<String, Module>
+    ast_modules: HashMap<ObjectIdent, Module>
 }
 
 
@@ -59,14 +74,16 @@ struct AstGlobalContext{
 
 
 
-#[allow(unused)]
+
 #[derive(Clone)]
 #[derive(Debug)]
+#[allow(unused)]
 enum  CurrentContextType{
     ModuleContext(ModuleContext),
     FunctionContext(FunctionContext),
     LoopContext(LoopContext),
-    ConditionContext(ConditionContext)
+    ConditionContext(ConditionContext),
+    CallContext(CallContext)
 }
 
 impl Default for CurrentContextType {
@@ -79,7 +96,7 @@ impl Default for CurrentContextType {
 #[derive(Debug)]
 #[derive(Default)]
 struct ModuleContext{
-    name: String,
+    name: ObjectIdent,
 }
 
 
@@ -87,7 +104,7 @@ struct ModuleContext{
 #[derive(Clone)]
 #[derive(Debug)]
 struct FunctionContext{
-    name: String,
+    name: ObjectIdent,
 }
 
 
@@ -110,6 +127,14 @@ struct ConditionContext{
 
 
 
+#[allow(unused)]
+#[derive(Clone, Debug)]
+struct CallContext{
+    path: Vec<AnotherObjectValuePath>
+}
+
+
+
 #[derive(Clone)]
 #[derive(Debug)]
 struct  ConditionTrueContext  {
@@ -126,14 +151,11 @@ struct ConditionFalseContext{
 
 
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct ObjectData{
     is_mutable: bool, 
     name: ObjectIdent,
     value: ObjectDataValue,
-    // object_type: ObjectDataType,
     attrs: Vec<Attribute>
 }
 
@@ -141,17 +163,15 @@ struct ObjectData{
 
 
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 #[serde(tag = "val", content = "val_data")]
 enum ObjectDataValue {
     Enum (EnumObjectValue),
     Object (ObjectValue),
     AnotherObject(AnotherObjectValue),
     Literal (LiteralValue),
-    Function (Function),
-    FunctionCall(FunctionCallResult),
+    Function (FunctionValue),
+    FunctionCall(FunctionCallResultValue),
     Binary (BinaryObjectValue)
 }
 
@@ -159,9 +179,7 @@ enum ObjectDataValue {
 
 
 #[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct BinaryObjectValue{
     op: BinaryOpType,
     v1: Box<ObjectDataValue>,
@@ -169,9 +187,7 @@ struct BinaryObjectValue{
 }
 
 
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct EnumObjectValue{
     props: Vec<ObjectData>,
     variants: Vec<ObjectData>
@@ -180,39 +196,30 @@ struct EnumObjectValue{
 
 
 
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct ObjectValue{
     props: Vec<ObjectData>
 }
 
 
 
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct AnotherObjectValue{
     obj: Box<ObjectData>,
     path: Vec<AnotherObjectValuePath>
 }
 
 
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 enum AnotherObjectValuePath{
     Ident(ObjectIdent),
-    FunctionCall {name: ObjectIdent, func_call: FunctionCallResult},
+    FunctionCall {name: ObjectIdent, func_call: FunctionCallResultValue },
 }
 
 
 
 
-#[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 #[serde(tag = "lit-val", content = "lit-val-data")]
 enum LiteralValue {
     Str (LitValueString),
@@ -221,27 +228,22 @@ enum LiteralValue {
     Num (LitValueNum)
 }
 
-#[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct LitValueString{
-    val: String,
+    val: ObjectIdent,
 }
 
 
-#[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 struct LitValueNum{
     val: f64
 }
 
-#[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+impl Eq for LitValueNum {
+
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct LitValueBool{
     val: bool
 }
@@ -251,11 +253,7 @@ struct LitValueBool{
 
 
 
-
-
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 #[serde(tag = "bin-op-type", content = "bin-op-type-data")]
 pub enum BinaryOpType {
     EqEq,
@@ -288,61 +286,35 @@ pub enum BinaryOpType {
 }
 
 
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct Attribute{
-    name: String,
-    vals: Vec<String>
-}
-
-#[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
-struct FunctionMetaDataType{
-    meta_data: Box<FunctionMetaData>
+    name: ObjectIdent,
+    vals: Vec<ObjectIdent>
 }
 
 
 
 
-#[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
-struct FunctionCallResult{
-    function_meta: FunctionMetaData,
+
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+struct FunctionCallResultValue {
     args:Vec<ObjectDataValue>,
     result: Box<ObjectDataValue>,
     path: Vec<AnotherObjectValuePath>
 }
 
 
-#[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
-struct FunctionMetaData{
-    result: Box<ObjectData>,
-    args: Vec<ObjectData>,
-}
 
-#[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
-struct Function{
-    meta:Box<FunctionMetaData>,
-    statement: Box<Statement>,
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+struct FunctionValue {
+    //meta:Box<FunctionMetaData>,
+    scope: Box<Scope>,
     params: Vec<ObjectData>,
     result: Box<ObjectData>
 }
 
-#[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 #[serde(tag = "stmt", content = "stmt-data")]
 enum Statement {
     Object(ObjectData),
@@ -354,21 +326,15 @@ enum Statement {
     Export (Export),
 }
 
-#[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct Import {
     val: Vec<ObjectData>,
-    src: String,
+    src: ObjectIdent,
 }
 
 
 
-#[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 enum Export {
     ObjectExport(ExportObject),
     ObjectIdentExport(ExportObjectIdent)
@@ -376,21 +342,17 @@ enum Export {
 
 
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct ExportObject{
     val: ObjectData,
-    src: String
+    src: ObjectIdent
 }
 
 
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct ExportObjectIdent{
-    src: String,
+    src: ObjectIdent,
     val: Vec<ObjectIdent>
 }
 
@@ -400,18 +362,14 @@ struct ExportObjectIdent{
 
 
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct  ScopyModule{
-    name: String,
+    name: ObjectIdent,
     statements: Vec<Statement>,
 }
 
 #[allow(unused)]
-#[derive(Debug)]
-#[derive(Serialize)]
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct Loop{
     cond: ObjectDataValue,
     loop_scope: Box<Statement>
@@ -419,9 +377,7 @@ struct Loop{
 
 
 #[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct Condition{
     cond: ObjectDataValue,
     false_scope: Option<Box<Statement>>,
@@ -429,11 +385,8 @@ struct Condition{
 }
 
 #[allow(unused)]
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 struct Scope{
-    name: Option<String>,
     statements: Vec<Statement>
 }
 
@@ -446,7 +399,7 @@ enum CodeModuleSourceFileType{
 
 struct CodeModuleMetaData{
     code: String,
-    name: String,
+    name: ObjectIdent,
     module_meta_type: CodeModuleSourceFileType,
 }
 
@@ -455,6 +408,7 @@ struct CodeModuleMetaData{
 
 
 fn default_module_meta() -> CodeModuleMetaData{
+
     CodeModuleMetaData{
         code:  r#"
             const string = {};
@@ -467,7 +421,7 @@ fn default_module_meta() -> CodeModuleMetaData{
 
             export {string, bool, number, generic};
         "#.to_string(),
-        name: "default.js".to_string(),
+        name:"default.js".to_string(),
         module_meta_type: CodeModuleSourceFileType::Internal,
     }
 }
@@ -701,8 +655,8 @@ fn parse_modules(){
 }
 
 
-fn reorder_modules_to_parse(ctxs: &Vec<AstCurrentContext>) -> Vec<String>{
-    let mut modules_graph: HashMap<String, Vec<String>> = HashMap::new();
+fn reorder_modules_to_parse(ctxs: &Vec<AstCurrentContext>) -> Vec<ObjectIdent>{
+    let mut modules_graph: HashMap<ObjectIdent, Vec<ObjectIdent>> = HashMap::new();
 
 
     ctxs.into_iter().for_each(|ctx| {
@@ -717,8 +671,8 @@ fn reorder_modules_to_parse(ctxs: &Vec<AstCurrentContext>) -> Vec<String>{
 
 
 
-    let mut module_parse_queue : Vec<String> = Vec::new();
-    let mut module_parse_stack: Vec<String> = vec!["main.js".to_string()];
+    let mut module_parse_queue : Vec<ObjectIdent> = Vec::new();
+    let mut module_parse_stack: Vec<ObjectIdent> = vec!["main.js".to_string()];
 
 
 
@@ -775,7 +729,7 @@ fn main() {
 
 
 
-fn dump_ir_html(ir: &ScopyModule, name: String) {
+fn dump_ir_html(ir: &ScopyModule, name: ObjectIdent) {
 
 
     // 1. сериализация
@@ -846,9 +800,9 @@ fn parse_module_item(el: &ModuleItem, ctx: &CurrentContext, glob_ctx: &GlobalCon
 }
 
 
-fn module_import_map(ast_context: &AstCurrentContext) -> Vec<String>{
+fn module_import_map(ast_context: &AstCurrentContext) -> Vec<ObjectIdent>{
 
-    let mut module_stmts: HashSet<String> = HashSet::new();
+    let mut module_stmts: HashSet<ObjectIdent> = HashSet::new();
     ast_context.module.body.iter()
         .for_each(|el| {
             match el {
@@ -868,7 +822,7 @@ fn module_import_map(ast_context: &AstCurrentContext) -> Vec<String>{
 
 
 
-fn import_module_decl_module_import_map(module_decl: &ModuleDecl) -> Option<String>{
+fn import_module_decl_module_import_map(module_decl: &ModuleDecl) -> Option<ObjectIdent>{
     let module_name = match module_decl{
         ModuleDecl::Import(import_decl) => {
             let module_name = get_import_decl_module_name(import_decl);
@@ -891,7 +845,7 @@ fn import_module_decl_module_import_map(module_decl: &ModuleDecl) -> Option<Stri
 
 
 
-fn parse_export_specifier(spec: &ExportSpecifier) -> String{
+fn parse_export_specifier(spec: &ExportSpecifier) -> ObjectIdent{
     match spec {
         ExportSpecifier::Namespace(_) => {
             panic!("Namespace export not supported");
@@ -905,7 +859,7 @@ fn parse_export_specifier(spec: &ExportSpecifier) -> String{
     }
 }
 
-fn parse_export_named_specifier(spec: &ExportNamedSpecifier) -> String{
+fn parse_export_named_specifier(spec: &ExportNamedSpecifier) -> ObjectIdent{
     match &spec.exported {
         None => {
             let d = parse_export_module_name(&spec.orig);
@@ -918,7 +872,7 @@ fn parse_export_named_specifier(spec: &ExportNamedSpecifier) -> String{
     }
 }
 
-fn parse_export_module_name(spec_name: &ModuleExportName) ->String
+fn parse_export_module_name(spec_name: &ModuleExportName) ->ObjectIdent
 {
     let d = match spec_name {
         ModuleExportName::Ident(ident) => parse_ident(&ident),
@@ -1007,7 +961,7 @@ fn parse_export_decl(export_decl: &ExportDecl, ctx: &CurrentContext, glob_ctx: &
 
 
 
-fn create_context_in_global_context(global_ctx: &GlobalContext, module_name: &String) -> CurrentContext{
+fn create_context_in_global_context(global_ctx: &GlobalContext, module_name: &ObjectIdent) -> CurrentContext{
     let res = global_ctx.parsed_modules.iter().find_map(|(name, m)| {
         if *name == *module_name{
             let context = CurrentContext{
@@ -1037,7 +991,7 @@ fn create_context_in_global_context(global_ctx: &GlobalContext, module_name: &St
 
 
 
-fn create_object_from_exports(ctx: &CurrentContext, glob_ctx: &GlobalContext, import_name: &String) -> ObjectData{
+fn create_object_from_exports(ctx: &CurrentContext, glob_ctx: &GlobalContext, import_name: &ObjectIdent) -> ObjectData{
 
     let props = ctx.current_statements.iter().filter_map(|stmt|{
         if let Statement::Export(export_obj) = stmt{
@@ -1096,7 +1050,7 @@ fn ident_exports_to_objs(ident_exports: Vec<ObjectIdent>, ctx: &CurrentContext, 
 
 
 
-fn get_import_decl_module_name(import_decl: &ImportDecl) -> String{
+fn get_import_decl_module_name(import_decl: &ImportDecl) -> ObjectIdent{
     import_decl.src.value.to_string_lossy().into_owned()
 }
 
@@ -1130,7 +1084,7 @@ fn parse_import_decl(import_decl: &ImportDecl, glob_ctx: &GlobalContext) -> Vec<
     imports
 }
 
-fn parse_import_specifier(s: &ImportSpecifier) -> (String, bool){
+fn parse_import_specifier(s: &ImportSpecifier) -> (ObjectIdent, bool){
     match s {
         ImportSpecifier::Named(import_named_specifier) => {
             let name = parse_named_specifier(import_named_specifier);
@@ -1149,13 +1103,13 @@ fn parse_import_specifier(s: &ImportSpecifier) -> (String, bool){
 }
 
 
-fn parse_import_start_specifier(import_default_specifier: &ImportStarAsSpecifier) -> String {
+fn parse_import_start_specifier(import_default_specifier: &ImportStarAsSpecifier) -> ObjectIdent {
     parse_ident(&import_default_specifier.local)
 }
 
 
 
-fn parse_named_specifier(import_named_specifier: &ImportNamedSpecifier) -> String{
+fn parse_named_specifier(import_named_specifier: &ImportNamedSpecifier) -> ObjectIdent{
 
 
     match &import_named_specifier.imported {
@@ -1167,7 +1121,7 @@ fn parse_named_specifier(import_named_specifier: &ImportNamedSpecifier) -> Strin
 }
 
 
-fn parse_module_export_name(imported: &ModuleExportName) -> String{
+fn parse_module_export_name(imported: &ModuleExportName) -> ObjectIdent{
     let name = match imported{
         ModuleExportName::Ident(ident) => parse_ident(&ident),
         ModuleExportName::Str(_) => panic!("str export not allowed"),
@@ -1182,39 +1136,25 @@ fn parse_stmt(stmt: &Stmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_g
             let stmt = Statement::Scope(scope);
             stmt
         },
-        Stmt::Empty(_empty_stmt) => panic!("empty statement not allowed"),
-        Stmt::Debugger(_debugger_stmt) => panic!("debugger not allowed"),
-        Stmt::With(_) => panic!("ts not allowed"),
-        Stmt::Return(_return_stmt) => panic!("const result = yourResult use instead"),
-        Stmt::Labeled(_labeled_stmt) => panic!("labeled statement not allowed"),
-        Stmt::Break(_break_stmt) => panic!("break statement not allowed"),
-        Stmt::Continue(_continue_stmt) => panic!("continue statement not allowed"),
         Stmt::If(if_stmt) => {
             let if_cond = parse_if(if_stmt, ctx, glob_ctx, ast_global_context);
 
             Statement::Conditional(if_cond)
         },
-        Stmt::Switch(_switch_stmt) => panic!("switch statement not allowed"),
-        Stmt::Throw(_throw_stmt) => panic!("throw statement not allowed"),
-        Stmt::Try(_try_stmt) => panic!("try statement not allowed"),
         Stmt::While(while_stmt) => {
             let loop_s = parse_while(while_stmt, ctx, glob_ctx, ast_global_context);
             let loop_stmt = Statement::Loop(loop_s);
             loop_stmt
         },
-        Stmt::DoWhile(_do_while_stmt) => panic!("do while not allowed"),
-        Stmt::For(_for_stmt) => panic!("for not allowed"),
-        Stmt::ForIn(_for_in_stmt) => panic!("for in not allowed"),
-        Stmt::ForOf(_for_of_stmt) => panic!("for of not allowed"),
         Stmt::Decl(decl) => {
             match decl{
-                Decl::Class(_class_decl) => panic!("class declaration not allowed"),
-                Decl::Fn(_fn_decl) => panic!("function not allowed"),
                 Decl::Var(var_decl) => {
                     let decl = parse_decl(var_decl, ctx, glob_ctx, ast_global_context);
                     let stmt = Statement::Object(decl);
                     stmt
                 },
+                Decl::Class(_class_decl) => panic!("class declaration not allowed"),
+                Decl::Fn(_fn_decl) => panic!("function not allowed"),
                 Decl::Using(_using_decl) => panic!("using not allowed"),
                 Decl::TsInterface(_ts_interface_decl) => panic!("ts not allowed"),
                 Decl::TsTypeAlias(_ts_type_alias_decl) => panic!("ts not allowed"),
@@ -1227,6 +1167,20 @@ fn parse_stmt(stmt: &Stmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_g
             let stmt = Statement::ObjectValue(expr);
             stmt
         },
+        Stmt::Empty(_empty_stmt) => panic!("empty statement not allowed"),
+        Stmt::Debugger(_debugger_stmt) => panic!("debugger not allowed"),
+        Stmt::With(_) => panic!("ts not allowed"),
+        Stmt::Return(_return_stmt) => panic!("const result = yourResult use instead"),
+        Stmt::Labeled(_labeled_stmt) => panic!("labeled statement not allowed"),
+        Stmt::Break(_break_stmt) => panic!("break statement not allowed"),
+        Stmt::Continue(_continue_stmt) => panic!("continue statement not allowed"),
+        Stmt::Switch(_switch_stmt) => panic!("switch statement not allowed"),
+        Stmt::Throw(_throw_stmt) => panic!("throw statement not allowed"),
+        Stmt::Try(_try_stmt) => panic!("try statement not allowed"),
+        Stmt::DoWhile(_do_while_stmt) => panic!("do while not allowed"),
+        Stmt::For(_for_stmt) => panic!("for not allowed"),
+        Stmt::ForIn(_for_in_stmt) => panic!("for in not allowed"),
+        Stmt::ForOf(_for_of_stmt) => panic!("for of not allowed"),
     };
     stmt
 }
@@ -1467,19 +1421,19 @@ fn find_in_context(ctx: &CurrentContext, name: ObjectIdent, glob_ctx: &GlobalCon
 
 
 
-fn check_obj_data(object_data: &ObjectData, name: &String) -> Option<ObjectData>{
+fn check_obj_data(object_data: &ObjectData, name: &ObjectIdent) -> Option<ObjectData>{
     if object_data.name == *name{
         Some(object_data.clone())
     }
     else { None }
 }
 
-fn find_obj_from_import(import: &Import, name: &String) -> Option<ObjectData>{
+fn find_obj_from_import(import: &Import, name: &ObjectIdent) -> Option<ObjectData>{
     let f_obj = import.val.iter().find(|val| {val.name == *name}).cloned();
     f_obj
 }
 
-fn check_export_obj(obj_exp: &ExportObject, name: &String) -> Option<ObjectData>{
+fn check_export_obj(obj_exp: &ExportObject, name: &ObjectIdent) -> Option<ObjectData>{
     if obj_exp.val.name == *name{
         Some(obj_exp.val.clone())
     }
@@ -1488,7 +1442,7 @@ fn check_export_obj(obj_exp: &ExportObject, name: &String) -> Option<ObjectData>
 
 
 
-fn find_in_scopy_module(module: &ScopyModule, name: &String, glob_ctx: &GlobalContext, ctx: &CurrentContext) -> Option<ObjectData> {
+fn find_in_scopy_module(module: &ScopyModule, name: &ObjectIdent, glob_ctx: &GlobalContext, ctx: &CurrentContext) -> Option<ObjectData> {
     let find_result = module.statements.iter().find_map(|stmt| {
         let obj_data = find_in_statements(&stmt, ctx,  &name, glob_ctx);
         obj_data
@@ -1498,7 +1452,7 @@ fn find_in_scopy_module(module: &ScopyModule, name: &String, glob_ctx: &GlobalCo
 
 
 
-fn find_global_ctx(name: &String, glob_ctx: &GlobalContext,  ctx: &CurrentContext) -> Option<ObjectData> {
+fn find_global_ctx(name: &ObjectIdent, glob_ctx: &GlobalContext,  ctx: &CurrentContext) -> Option<ObjectData> {
     let obj_val_opt = glob_ctx
         .parsed_modules
         .iter()
@@ -1513,7 +1467,7 @@ fn find_global_ctx(name: &String, glob_ctx: &GlobalContext,  ctx: &CurrentContex
 }
 
 
-fn check_ident_export(ident_export: &ExportObjectIdent, name: &String, ctx: &CurrentContext,  glob_ctx: &GlobalContext) -> Option<ObjectData> {
+fn check_ident_export(ident_export: &ExportObjectIdent, name: &ObjectIdent, ctx: &CurrentContext,  glob_ctx: &GlobalContext) -> Option<ObjectData> {
     let d = ident_export.val.iter().find_map(|val| {
         if val == name {
             let obj_val_opt = find_global_ctx(name, &glob_ctx, ctx);
@@ -1553,74 +1507,196 @@ fn find_in_statements(stmt: &Statement, ctx: &CurrentContext, name: &ObjectIdent
     }
 }
 
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum ExprPanic {
+    ThisNotAllowed,
+    ArrayNotAllowed,
+    FnNotAllowed,
+    UnaryExpressionNotAllowed,
+    UpdateExpressionNotAllowed,
+    AssignExpressionNotAllowed,
+    SuperPropNotAllowed,
+    CondExpressionNotAllowed,
+    NewExpressionNotAllowed,
+    SeqExpressionNotAllowed,
+    TsNotAllowed,
+    YieldAllowed,
+    MetaPropertyNotAllowed,
+    AwaitNotAllowed,
+    ClassNotAllowed,
+    InvalidExpression,
+    ShorthandPropNotAllowed,
+    GetterPropNotAllowed,
+    SetterPropNotAllowed,
+    MethodPropNotAllowed,
+    BinaryOperationNotSupported,
+    PrivateNamePropNotAllowed,
+    ComputedPropNotAllowed,
+    SuperCalleeNotSupported,
+    ImportCalleeNotSupported,
+    EnumValueNotFunction,
+    ObjectValueNotFunction,
+    LiteralValueNotFunction,
+    NestedFunctionCallNotAllowed,
+    BinaryValueNotFunction,
+    BigIntLiteralNotAllowed,
+    RegexLiteralNotAllowed,
+    IdentPatternNotSupported,
+    ArrayPatternNotSupported,
+    RestPatternNotSupported,
+    ObjectPatternNotSupported,
+    InvalidPatternNotSupported,
+    ExpressionPatternNotSupported,
+    AssignPatternNotSupported,
+    ExpressionNotAllowedAsStatement,
+    ResultNotFoundInParams,
+    InvalidMemberExpressionMemberNotFound,
+    ObjectNotFoundByName,
+    EnumValueCannotBeSpread,
+    ObjectValueCannotBeSpread,
+    LiteralValueCannotBeSpread,
+    FunctionValueCannotBeSpread,
+    BinaryValueCannotBeSpread,
+    KeyValuePropNotSupported
+}
+
+impl std::fmt::Display for ExprPanic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::KeyValuePropNotSupported => write!(f, "Key value property not supported"),
+            Self::ThisNotAllowed => write!(f, "this not allowed"),
+            Self::ArrayNotAllowed => write!(f, "array not allowed"),
+            Self::FnNotAllowed => write!(f, "fn not allowed"),
+            Self::UnaryExpressionNotAllowed => write!(f, "unary expression not allowed"),
+            Self::UpdateExpressionNotAllowed => write!(f, "update expression not allowed"),
+            Self::AssignExpressionNotAllowed => write!(f, "assign expression not allowed"),
+            Self::SuperPropNotAllowed => write!(f, "super prop not allowed"),
+            Self::CondExpressionNotAllowed => write!(f, "cond expression not allowed"),
+            Self::NewExpressionNotAllowed => write!(f, "new expression not allowed"),
+            Self::SeqExpressionNotAllowed => write!(f, "seq expression not allowed"),
+            Self::TsNotAllowed => write!(f, "ts not allowed"),
+            Self::YieldAllowed => write!(f, "yield allowed"),
+            Self::MetaPropertyNotAllowed => write!(f, "meta property not allowed"),
+            Self::AwaitNotAllowed => write!(f, "await not allowed"),
+            Self::ClassNotAllowed => write!(f, "class not allowed"),
+            Self::InvalidExpression => write!(f, "invalid expression"),
+            Self::ShorthandPropNotAllowed => write!(f, "Shorthand properties are not allowed"),
+            Self::GetterPropNotAllowed => write!(f, "Getter properties are not allowed"),
+            Self::SetterPropNotAllowed => write!(f, "Setter properties are not allowed"),
+            Self::MethodPropNotAllowed => write!(f, "Method properties are not allowed"),
+            Self::BinaryOperationNotSupported => write!(f, "Binary operation is not supported"),
+            Self::PrivateNamePropNotAllowed => write!(f, "Private name in properties is not allowed"),
+            Self::ComputedPropNotAllowed => write!(f, "Computed properties are not allowed"),
+            Self::SuperCalleeNotSupported => write!(f, "Super callee is not supported"),
+            Self::ImportCalleeNotSupported => write!(f, "Import is not supported as callee"),
+            Self::EnumValueNotFunction => write!(f, "Enum value is not a function"),
+            Self::ObjectValueNotFunction => write!(f, "Object value is not a function"),
+            Self::LiteralValueNotFunction => write!(f, "Literal value is not a function"),
+            Self::NestedFunctionCallNotAllowed => write!(f, "Nested function calls like foo_call()() are not allowed because they are hard to read"),
+            Self::BinaryValueNotFunction => write!(f, "Binary value is not a function"),
+            Self::BigIntLiteralNotAllowed => write!(f, "BigInt literals are not allowed"),
+            Self::RegexLiteralNotAllowed => write!(f, "Regular expression literals are not allowed"),
+            Self::IdentPatternNotSupported => write!(f, "Identifier patterns are not supported"),
+            Self::ArrayPatternNotSupported => write!(f, "Array patterns are not supported"),
+            Self::RestPatternNotSupported => write!(f, "Rest patterns are not supported"),
+            Self::ObjectPatternNotSupported => write!(f, "Object patterns are not supported"),
+            Self::InvalidPatternNotSupported => write!(f, "Invalid patterns are not supported"),
+            Self::ExpressionPatternNotSupported => write!(f, "Expression patterns are not supported"),
+            Self::AssignPatternNotSupported => write!(f, "Assign patterns are not supported"),
+            Self::ExpressionNotAllowedAsStatement => write!(f, "Expressions are not allowed as statements"),
+            Self::ResultNotFoundInParams => write!(f, "Cannot find result in params"),
+            Self::InvalidMemberExpressionMemberNotFound => write!(f, "Invalid member expression. Member not found."),
+            Self::ObjectNotFoundByName => write!(f, "Cannot find object with name"),
+            Self::EnumValueCannotBeSpread => write!(f, "Enum values cannot be spread"),
+            Self::ObjectValueCannotBeSpread => write!(f, "Object values cannot be spread"),
+            Self::LiteralValueCannotBeSpread => write!(f, "Literal values cannot be spread"),
+            Self::FunctionValueCannotBeSpread => write!(f, "Function values cannot be spread"),
+            Self::BinaryValueCannotBeSpread => write!(f, "Binary values cannot be spread"),
+        }
+    }
+}
+
+
+
+
 fn parse_expr(expr:&Expr, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ObjectDataValue{
     match expr {
-        Expr::This(_this_expr) => panic!("this not allowed"),
-        Expr::Array(_array_lit) => panic!("array not allowed"),
         Expr::Object(object_lit) => {
             let object_val = parse_obj_lit(object_lit, ctx, glob_ctx, ast_global_context);
             ObjectDataValue::Object(object_val)
         },
-        Expr::Fn(_fn_expr) => panic!("fn not allowed"),
-        Expr::Unary(_unary_expr) => panic!("unary expression not allowed"),
-        Expr::Update(_update_expr) => panic!("update expression  not allowed"),
         Expr::Bin(bin_expr) => {
             let bin_val = parse_bin_expr(bin_expr, ctx, glob_ctx, ast_global_context);
             ObjectDataValue::Binary(bin_val)
         },
-        Expr::Assign(_assign_expr) => panic!("assign expression not allowed"),
         Expr::Member(member_expr) => {
             let member_expr = parse_member_expr(member_expr, ctx, glob_ctx, ast_global_context);
             ObjectDataValue::AnotherObject(member_expr)
-        },
-        Expr::SuperProp(_super_prop_expr) => panic!("super prop not allowed"),
-        Expr::Cond(_cond_expr) => panic!("cond expression not allowed"),
-        Expr::Call(call_expr) => {
-            let call_expr = parse_call_expr(call_expr, ctx, glob_ctx, ast_global_context);
-            ObjectDataValue::FunctionCall(call_expr)
-        },
-        Expr::New(_new_expr) => panic!("new expression not allowed"),
-        Expr::Seq(_seq_expr) => panic!("seq expression not allowed"),
-        Expr::Ident(ident) => {
-            let name = parse_ident(ident);
-            let another_obj = find_in_context(ctx, name, glob_ctx).unwrap();
-            let res = ObjectDataValue::AnotherObject(another_obj);
-            res
         },
         Expr::Lit(lit) => {
             let lit_expr = parse_lit_expr(lit);
             lit_expr
         },
-        Expr::Tpl(_) => panic!("ts not allowed"),
-        Expr::TaggedTpl(_) => panic!("ts not allowed"),
-        Expr::Arrow(arrow_expr) => {
-            let function = parse_arrow_expr(arrow_expr, ctx, glob_ctx, ast_global_context);
-            ObjectDataValue::Function(function)
+        Expr::Ident(ident) => {
+            let name = parse_ident(ident);
+            let another_obj_res = find_in_context(ctx, name, glob_ctx);
+
+            match another_obj_res {
+                None => {
+                    compiler_panic!(ExprPanic::ObjectNotFoundByName);
+                }
+                Some(another_obj) => ObjectDataValue::AnotherObject(another_obj)
+            }
+
         },
-        Expr::Class(_class_expr) => panic!("class not allowed"),
-        Expr::Yield(_yield_expr) => panic!("yield allowed"),
-        Expr::MetaProp(_meta_prop_expr) => panic!("meta property not allowed"),
-        Expr::Await(_await_expr) => panic!("await not allowed"),
         Expr::Paren(paren_expr) => {
             let res = parse_paren_expr(paren_expr, ctx, glob_ctx, ast_global_context);
             res
         },
-        Expr::JSXMember(_jsxmember_expr) => todo!(),
-        Expr::JSXNamespacedName(_jsxnamespaced_name) => todo!(),
-        Expr::JSXEmpty(_jsxempty_expr) => todo!(),
-        Expr::JSXElement(_jsxelement) => todo!(),
-        Expr::JSXFragment(_jsxfragment) => todo!(),
-        Expr::TsTypeAssertion(_ts_type_assertion) => panic!("ts not allowed"),
-        Expr::TsConstAssertion(_ts_const_assertion) => panic!("ts not allowed"),
-        Expr::TsNonNull(_ts_non_null_expr) => panic!("ts not allowed"),
-        Expr::TsAs(_ts_as_expr) => panic!("ts not allowed"),
-        Expr::TsInstantiation(_ts_instantiation) => panic!("ts not allowed"),
-        Expr::TsSatisfies(_ts_satisfies_expr) => panic!("ts not allowed"),
-        Expr::PrivateName(_private_name) => panic!("ts not allowed"),
-        Expr::OptChain(_opt_chain_expr) => panic!("ts not allowed"),
-        Expr::Invalid(_invalid) => {
-            panic!("invalid expression")
+        Expr::Arrow(arrow_expr) => {
+            let function = parse_arrow_expr(arrow_expr, ctx, glob_ctx, ast_global_context);
+            ObjectDataValue::Function(function)
         },
+        Expr::Call(call_expr) => {
+            let call_expr = parse_call_expr(call_expr, ctx, glob_ctx, ast_global_context);
+            ObjectDataValue::FunctionCall(call_expr)
+        },
+
+
+
+        Expr::Array(_) => compiler_panic!(ExprPanic::ArrayNotAllowed),
+
+
+        Expr::This(_) => compiler_panic!(ExprPanic::ThisNotAllowed),
+        Expr::Fn(_) => compiler_panic!(ExprPanic::FnNotAllowed),
+        Expr::Unary(_) => compiler_panic!(ExprPanic::UnaryExpressionNotAllowed),
+        Expr::Update(_) => compiler_panic!(ExprPanic::UpdateExpressionNotAllowed),
+        Expr::Assign(_) => compiler_panic!(ExprPanic::AssignExpressionNotAllowed),
+        Expr::SuperProp(_) => compiler_panic!(ExprPanic::SuperPropNotAllowed),
+        Expr::New(_) => compiler_panic!(ExprPanic::NewExpressionNotAllowed),
+        Expr::Seq(_) => compiler_panic!(ExprPanic::SeqExpressionNotAllowed),
+        Expr::Cond(_) => compiler_panic!(ExprPanic::CondExpressionNotAllowed),
+        Expr::Tpl(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::TaggedTpl(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::Class(_) => compiler_panic!(ExprPanic::ClassNotAllowed),
+        Expr::Yield(_) => compiler_panic!(ExprPanic::YieldAllowed),
+        Expr::MetaProp(_) => compiler_panic!(ExprPanic::MetaPropertyNotAllowed),
+        Expr::Await(_) => compiler_panic!(ExprPanic::AwaitNotAllowed),
+        Expr::TsTypeAssertion(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::TsConstAssertion(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::TsNonNull(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::TsAs(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::TsInstantiation(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::TsSatisfies(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::PrivateName(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::OptChain(_) => compiler_panic!(ExprPanic::TsNotAllowed),
+        Expr::Invalid(_) => compiler_panic!(ExprPanic::InvalidExpression),
+        Expr::JSXMember(_) => todo!(),
+        Expr::JSXNamespacedName(_) => todo!(),
+        Expr::JSXEmpty(_) => todo!(),
+        Expr::JSXElement(_) => todo!(),
+        Expr::JSXFragment(_) => todo!(),
     }
 }
 
@@ -1642,14 +1718,26 @@ fn parse_prop_or_spread(p: &PropOrSpread, ctx: &CurrentContext, glob_ctx: &Globa
 }
 
 
+
+
 fn parse_spread_el(spread_element: &SpreadElement, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Vec<ObjectData>{
     let val: ObjectDataValue = parse_expr(&spread_element.expr, ctx, glob_ctx, ast_global_context);
-    let unpack_value = unpapck_data_value(&val);
-    
 
-    unpack_value
+    unpack_data_value_with_check(&val)
 }
 
+
+fn unpack_data_value_with_check(val: &ObjectDataValue) ->Vec<ObjectData>{
+    match val {
+        ObjectDataValue::AnotherObject(_) => unpapck_data_value(val),
+        ObjectDataValue::FunctionCall(_) => unpapck_data_value(val),
+        ObjectDataValue::Enum(_) => compiler_panic!(ExprPanic::EnumValueCannotBeSpread),
+        ObjectDataValue::Object(_) => compiler_panic!(ExprPanic::ObjectValueCannotBeSpread),
+        ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueCannotBeSpread),
+        ObjectDataValue::Function(_) => compiler_panic!(ExprPanic::FunctionValueCannotBeSpread),
+        ObjectDataValue::Binary(_) => compiler_panic!(ExprPanic::BinaryValueCannotBeSpread),
+    }
+}
 
 
 fn unpapck_data_value(val: &ObjectDataValue) -> Vec<ObjectData>{
@@ -1676,9 +1764,28 @@ fn map_prop_obj_data(prop: Option<ObjectData>, member_name: &ObjectIdent) -> Opt
     another_obj
 }
 
-fn another_obj_from_member(val: &ObjectDataValue, member_name: &ObjectIdent) -> Option<AnotherObjectValue>{
+
+fn change_path_call_context(ctx: &CurrentContext, path: Vec<AnotherObjectValuePath>) -> CurrentContext{
+    if let CurrentContextType::CallContext(ctx_type) = &ctx.context_type{
+        let res = CurrentContext{
+            current_statements: ctx.current_statements.clone(),
+            context_type: CurrentContextType::CallContext(CallContext{
+                path: [ctx_type.path.clone(), path.clone()].concat()
+            }),
+            prev: ctx.prev.clone(),
+            current_module_name: ctx.current_module_name.clone(),
+        };
+        res
+    }
+    else {
+        ctx.clone()
+    }
+}
+
+fn another_obj_from_member(val: &ObjectDataValue, member_name: &ObjectIdent, ctx: &CurrentContext) -> Option<AnotherObjectValue>{
     match val {
         ObjectDataValue::Enum(enum_object_value) => {
+
             let prop = find_member_in_props(&enum_object_value.props, &member_name);
             let another_obj = map_prop_obj_data(prop, member_name);
             another_obj
@@ -1689,27 +1796,26 @@ fn another_obj_from_member(val: &ObjectDataValue, member_name: &ObjectIdent) -> 
             another_obj
         },
         ObjectDataValue::AnotherObject(another_object_value) => {
-            let another_obj = another_obj_from_member(&another_object_value.obj.value, &member_name);
+            let another_obj = another_obj_from_member(&another_object_value.obj.value, &member_name, ctx);
             
             let another_obj = another_obj.map(|o| {
                 let path = [another_object_value.path.clone(), o.path].concat();
                 AnotherObjectValue { obj: o.obj, path: path }
             });
             another_obj
-        }
-        ObjectDataValue::Literal(_) => None,
-        ObjectDataValue::Function(_) => None,
+        },
         ObjectDataValue::FunctionCall(function_meta_data) => {
-            
-            let another_obj = another_obj_from_member(&function_meta_data.result, member_name);
-            
+            let another_obj = another_obj_from_member(&function_meta_data.result, member_name, ctx);
+
 
             let another_obj = another_obj.map(|o| {
                 AnotherObjectValue { obj: o.obj, path: [function_meta_data.path.clone(), o.path.clone()].concat() }
             });
             another_obj
         },
-        ObjectDataValue::Binary(_) => None
+        ObjectDataValue::Literal(_) => None,
+        ObjectDataValue::Function(_) => None,
+        ObjectDataValue::Binary(_) => None,
     }
 }
 
@@ -1725,44 +1831,34 @@ fn find_member_in_props(props: &Vec<ObjectData>, prop_name: &ObjectIdent) -> Opt
 
 fn parse_prop(prop: &Prop, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ObjectData{
     match prop {
-        Prop::Shorthand(_ident) => panic!("Short hand ident"),
-        Prop::KeyValue(key_value_prop) => parse_key_value_prop(key_value_prop, ctx, glob_ctx, ast_global_context),
-        Prop::Assign(_assign_prop) => panic!("Assign prop"),
-        Prop::Getter(_getter_prop) => panic!("Getter prop"),
-        Prop::Setter(_setter_prop) => panic!("Setter prop"),
-        Prop::Method(_method_prop) => panic!("Method prop"),
+        Prop::KeyValue(_) => compiler_panic!(ExprPanic::KeyValuePropNotSupported),
+        Prop::Shorthand(_) => compiler_panic!(ExprPanic::ShorthandPropNotAllowed),
+        Prop::Assign(prop) => parse_assign_prop(&prop, ctx, glob_ctx, ast_global_context),
+        Prop::Getter(_) => compiler_panic!(ExprPanic::GetterPropNotAllowed),
+        Prop::Setter(_) => compiler_panic!(ExprPanic::SetterPropNotAllowed),
+        Prop::Method(_) => compiler_panic!(ExprPanic::MethodPropNotAllowed),
     }
 }
 
+fn parse_assign_prop(prop: &AssignProp, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ObjectData{
 
+    let current_object_name = parse_ident(&prop.key);
+    let value = parse_expr(&prop.value, ctx, glob_ctx, ast_global_context);
 
-fn parse_key_value_prop(key_value_prop: &KeyValueProp, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ObjectData{
-    let current_object_name = parse_prop_name(&key_value_prop.key);
-    let value = parse_expr(&key_value_prop.value, ctx, glob_ctx, ast_global_context);
-
-    let res = ObjectData { 
-        name: current_object_name, 
+    let res = ObjectData {
+        name: current_object_name,
         value,
         is_mutable: false,
-        attrs: get_attributes(&key_value_prop.span(), ast_global_context)
+        attrs: get_attributes(&prop.span(), ast_global_context)
     };
     res
 }
 
- 
-fn parse_prop_name(prop_name:&PropName) -> String{
-    match &prop_name{
-        PropName::Ident(ident_name) => {
-            parse_ident_name(&ident_name)
-        },
-        PropName::Str(_) => panic!("str as name not allowed"),
-        PropName::Num(_number) => panic!("num as name not allowed"),
-        PropName::Computed(_computed_prop_name) => panic!("computed prop not allowed"),
-        PropName::BigInt(_big_int) => panic!("big int not allowed"),
-    }
-}
 
-fn parse_ident_name(ident_name:&IdentName) -> String{
+
+
+
+fn parse_ident_name(ident_name:&IdentName) -> ObjectIdent{
     ident_name.sym.to_string()
 }
 
@@ -1784,7 +1880,7 @@ fn parse_bin_expr(bin_expr: &BinExpr, ctx: &CurrentContext, glob_ctx: &GlobalCon
         BinaryOp::LogicalAnd => BinaryOpType::LogicalAnd,
         BinaryOp::LogicalOr => BinaryOpType::LogicalOr,
         BinaryOp::NullishCoalescing => BinaryOpType::NullishCoalescing,
-        _ => panic!("Not supported binary"),
+        _ => compiler_panic!(ExprPanic::BinaryOperationNotSupported),
     };
     let res = BinaryObjectValue{
         op:op,
@@ -1798,21 +1894,21 @@ fn parse_bin_expr(bin_expr: &BinExpr, ctx: &CurrentContext, glob_ctx: &GlobalCon
 
 
 
-fn parse_binding_ident(binding_ident: &BindingIdent) -> String{
+fn parse_binding_ident(binding_ident: &BindingIdent) -> ObjectIdent{
     parse_ident(&binding_ident.id)
 }
 
 
 
-fn parse_pat_as_ident(pat: &Pat) -> String{
+fn parse_pat_as_ident(pat: &Pat) -> ObjectIdent{
     let ident = match &pat{
         Pat::Ident(binding_ident) => parse_binding_ident(binding_ident),
-        Pat::Array(array_pat) => panic!("{:#?}", array_pat),
-        Pat::Rest(rest_pat) => panic!("{:#?}", rest_pat),
-        Pat::Object(object_pat) => panic!("{:#?}", object_pat),
-        Pat::Assign(assign_pat) => panic!("{:#?}", assign_pat),
-        Pat::Invalid(invalid) => panic!("{:#?}", invalid),
-        Pat::Expr(expr) => panic!("{:#?}", expr),
+        Pat::Array(_) => compiler_panic!(ExprPanic::ArrayPatternNotSupported),
+        Pat::Rest(_) => compiler_panic!(ExprPanic::RestPatternNotSupported),
+        Pat::Object(_) => compiler_panic!(ExprPanic::ObjectPatternNotSupported),
+        Pat::Assign(_) => compiler_panic!(ExprPanic::AssignPatternNotSupported),
+        Pat::Invalid(_) => compiler_panic!(ExprPanic::InvalidPatternNotSupported),
+        Pat::Expr(_) => compiler_panic!(ExprPanic::ExpressionPatternNotSupported),
     };
     ident
 }
@@ -1830,15 +1926,15 @@ fn parse_pat_as_ident(pat: &Pat) -> String{
 
 fn parse_pat_as_assign(pat: &Pat, ctx:&CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ObjectData{
     let ident = match &pat{
-        Pat::Ident(binding_ident) => panic!("{:#?}",binding_ident),
-        Pat::Array(array_pat) => panic!("{:#?}", array_pat),
-        Pat::Rest(rest_pat) => panic!("{:#?}", rest_pat),
-        Pat::Object(object_pat) => panic!("{:#?}", object_pat),
         Pat::Assign(assign_pat) => {
             parse_assign_pat(assign_pat, ctx, glob_ctx, ast_global_context)
         },
-        Pat::Invalid(invalid) => panic!("{:#?}", invalid),
-        Pat::Expr(expr) => panic!("{:#?}", expr),
+        Pat::Ident(_) => compiler_panic!(ExprPanic::IdentPatternNotSupported),
+        Pat::Array(_) => compiler_panic!(ExprPanic::ArrayPatternNotSupported),
+        Pat::Rest(_) => compiler_panic!(ExprPanic::RestPatternNotSupported),
+        Pat::Object(_) => compiler_panic!(ExprPanic::ObjectPatternNotSupported),
+        Pat::Invalid(_) => compiler_panic!(ExprPanic::InvalidPatternNotSupported),
+        Pat::Expr(_) => compiler_panic!(ExprPanic::ExpressionPatternNotSupported),
     };
 
    ident
@@ -1863,7 +1959,7 @@ fn parse_paren_expr(paren_expr: &ParenExpr, ctx: &CurrentContext, glob_ctx: &Glo
     parse_expr(&paren_expr.expr, ctx, glob_ctx, ast_global_context)
 }
 
-fn parse_arrow_expr(arrow_expr: &ArrowExpr, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Function {
+fn parse_arrow_expr(arrow_expr: &ArrowExpr, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> FunctionValue {
 
     let params = arrow_expr.params
         .iter()
@@ -1876,21 +1972,30 @@ fn parse_arrow_expr(arrow_expr: &ArrowExpr, ctx: &CurrentContext, glob_ctx: &Glo
 
 
     
-    
-    let scope = parse_block_stmt_or_expr(&arrow_expr.body, ctx, glob_ctx, ast_global_context);
-    let result_type = find_result_type_in_params(&params).unwrap();
-    let stmt_res = Statement::Scope(scope);
-    
+    //
 
-    let meta = Box::new(FunctionMetaData { result: Box::new(result_type), args: params.clone() });
-    let result = find_result_in_params(&params).unwrap();
+    let result_opt = find_result_in_params(&params);
 
-    Function { 
-        meta: meta,
-        statement: Box::new(stmt_res),
-        params: params,
-        result:Box::new(result) 
+
+
+    if  let Some(result) = result_opt.clone() {
+        let scope = parse_block_stmt_or_expr(&arrow_expr.body, ctx, glob_ctx, ast_global_context);
+
+
+        FunctionValue {
+            scope: Box::new(scope),
+            params: params,
+            result:Box::new(result)
+        }
     }
+    else {
+        compiler_panic!(ExprPanic::ResultNotFoundInParams);
+    }
+
+
+
+
+
 }
 
 
@@ -1898,13 +2003,6 @@ fn find_result_in_params(params: &Vec<ObjectData>) -> Option<ObjectData>{
     params.iter().find(|p| p.name == "result").cloned()
 }
 
-
-fn find_result_type_in_params(params: &Vec<ObjectData>) -> Option<ObjectData>{
-    let result = params
-        .iter()
-        .find(|p| p.name == "result");
-    result.map(|r| r.clone())
-}
 
 
 
@@ -1916,9 +2014,10 @@ fn parse_block_stmt_or_expr(block_stmt_or_expr: &BlockStmtOrExpr, ctx: &CurrentC
             let block_scope = parse_block(block_stmt, ctx, glob_ctx, ast_global_context);
             block_scope
         },
-        BlockStmtOrExpr::Expr(_) => panic!("block stmt or expr not allowed"),
+        BlockStmtOrExpr::Expr(_) => compiler_panic!(ExprPanic::ExpressionNotAllowedAsStatement),
     }
 }
+
 
 
 
@@ -1943,10 +2042,10 @@ fn parse_lit_expr(lit_expr: &Lit) -> ObjectDataValue{
             }))
         },
         Lit::BigInt(_big_int) => {
-            panic!("big_int not allowed")
+            compiler_panic!(ExprPanic::BigIntLiteralNotAllowed)
         },
         Lit::Regex(_regex) => {
-            panic!("Regex not allowed");
+            compiler_panic!(ExprPanic::RegexLiteralNotAllowed)
         },
         Lit::JSXText(_jsxtext) => {
             todo!()
@@ -1954,23 +2053,23 @@ fn parse_lit_expr(lit_expr: &Lit) -> ObjectDataValue{
     }
 }
 
-fn parse_ident(ident_expr: &Ident) -> String{
+fn parse_ident(ident_expr: &Ident) -> ObjectIdent{
     let name = ident_expr.sym.to_string();
     name
 }
 
 
-fn parse_call_expr(call_expr: &CallExpr, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> FunctionCallResult{
+fn parse_call_expr(call_expr: &CallExpr, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> FunctionCallResultValue {
 
     let expr = get_expr_from_arg(call_expr);
     let args = get_func_args_call(call_expr, ctx, glob_ctx, ast_global_context);
-    let val_call = parse_expr(expr, ctx, glob_ctx, ast_global_context);
+    let val_call = parse_expr(&expr, ctx, glob_ctx, ast_global_context);
     let func_call = func_call_result(&val_call, args, vec![]);
     detail_func_call_path(&func_call)
 }
 
 
-fn detail_func_call_path(func_call: &FunctionCallResult) -> FunctionCallResult{
+fn detail_func_call_path(func_call: &FunctionCallResultValue) -> FunctionCallResultValue {
     let path = &func_call.path;
     let len = path.len();
     let new_path = path.iter()
@@ -1985,8 +2084,7 @@ fn detail_func_call_path(func_call: &FunctionCallResult) -> FunctionCallResult{
         })
         .collect::<Vec<_>>();
 
-    FunctionCallResult{
-        function_meta: func_call.function_meta.clone(),
+    FunctionCallResultValue {
         args: func_call.args.clone(),
         result: func_call.result.clone(),
         path: new_path
@@ -1994,9 +2092,12 @@ fn detail_func_call_path(func_call: &FunctionCallResult) -> FunctionCallResult{
 }
 
 
-fn get_expr_from_arg(call_expr: &CallExpr) -> &Box<Expr>{
-    let expr = call_expr.callee.as_expr().unwrap();
-    expr
+fn get_expr_from_arg(call_expr: &CallExpr) -> Box<Expr>{
+    match &call_expr.callee {
+        Callee::Super(_) => compiler_panic!(ExprPanic::SuperCalleeNotSupported),
+        Callee::Import(_) => compiler_panic!(ExprPanic::ImportCalleeNotSupported),
+        Callee::Expr(exr) => Box::new(*exr.clone())
+    }
 }
 
 fn get_func_args_call(call_expr: &CallExpr, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Vec<ObjectDataValue>{
@@ -2006,6 +2107,7 @@ fn get_func_args_call(call_expr: &CallExpr, ctx: &CurrentContext, glob_ctx: &Glo
             let obj_val = parse_expr_or_spread(arg, ctx, glob_ctx, ast_global_context);
             obj_val
         })
+        .flatten()
         .collect::<Vec<_>>();
 
     args
@@ -2014,24 +2116,22 @@ fn get_func_args_call(call_expr: &CallExpr, ctx: &CurrentContext, glob_ctx: &Glo
 
 
 
-fn func_call_result(val_call: &ObjectDataValue, args: Vec<ObjectDataValue>, path: Vec<AnotherObjectValuePath>) -> FunctionCallResult{
+fn func_call_result(val_call: &ObjectDataValue, args: Vec<ObjectDataValue>, path: Vec<AnotherObjectValuePath>) -> FunctionCallResultValue {
     match val_call {
-        ObjectDataValue::Enum(_) => panic!("not a function"),
-        ObjectDataValue::Object(_) => panic!("not a function"),
-        ObjectDataValue::AnotherObject(another_object_value) => func_call_result(&another_object_value.obj.value, args, [another_object_value.path.clone(), path].concat()),
-        ObjectDataValue::Literal(_) => panic!("not a function"),
         ObjectDataValue::Function(func_data) => {
-
-            let func_call = FunctionCallResult{
-                function_meta: *func_data.meta.clone(),
+            let func_call = FunctionCallResultValue {
                 args: args,
                 result: Box::new(func_data.result.value.clone()),
                 path: path
             };
             func_call
         },
-        ObjectDataValue::FunctionCall(_) => panic!("don't do foo_call()() it's hard to read"),
-        ObjectDataValue::Binary(_) => panic!("not a function"),
+        ObjectDataValue::AnotherObject(another_object_value) => func_call_result(&another_object_value.obj.value, args, [another_object_value.path.clone(), path].concat()),
+        ObjectDataValue::Enum(_) => compiler_panic!(ExprPanic::EnumValueNotFunction),
+        ObjectDataValue::Object(_) => compiler_panic!(ExprPanic::ObjectValueNotFunction),
+        ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueNotFunction),
+        ObjectDataValue::FunctionCall(_) => compiler_panic!(ExprPanic::NestedFunctionCallNotAllowed),
+        ObjectDataValue::Binary(_) => compiler_panic!(ExprPanic::BinaryValueNotFunction),
     }
 }
 
@@ -2039,38 +2139,66 @@ fn func_call_result(val_call: &ObjectDataValue, args: Vec<ObjectDataValue>, path
 
 
 
-fn parse_expr_or_spread(expr_or_spread: &ExprOrSpread, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ObjectDataValue{
+fn parse_expr_or_spread(expr_or_spread: &ExprOrSpread, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Vec<ObjectDataValue>{
+    let arg = parse_expr(&expr_or_spread.expr,ctx, glob_ctx, ast_global_context);
+
+
     let is_spread = expr_or_spread.spread.is_some();
 
-    if is_spread
-    {
-        panic!("Spread is not allowed in function call");
+    if is_spread {
+        let val = unpack_data_value_with_check(&arg).iter().map(|v|{
+            ObjectDataValue::AnotherObject(
+                AnotherObjectValue{
+                    obj: Box::from(v.clone()),
+                    path: vec![AnotherObjectValuePath::Ident(v.name.clone())]
+                }
+            )
+        }).collect::<Vec<_>>();
+        val
     }
-        
-
-    let arg = parse_expr(&expr_or_spread.expr,ctx, glob_ctx, ast_global_context);
-    
-    arg
+    else {
+        vec![arg]
+    }
     
 }
+
+
+
+
 
 fn parse_member_expr(member: &MemberExpr, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> AnotherObjectValue{
     let parse_member_val = parse_expr(&member.obj,ctx, glob_ctx, ast_global_context);
     let member_prop = parse_member_prop(&member.prop);
 
 
-    
 
-    let object_stmts = another_obj_from_member(&parse_member_val, &member_prop).unwrap();
 
-    object_stmts
+    let call_ctx = CurrentContext{
+        prev: Some(Box::new(ctx.clone())),
+        context_type: CurrentContextType::CallContext(CallContext{
+            path: vec![],
+        }),
+        current_statements: ctx.current_statements.clone(),
+        current_module_name: ctx.current_module_name.clone(),
+    };
+    let object_stmts_opt = another_obj_from_member(&parse_member_val, &member_prop, &call_ctx);
+
+
+    match object_stmts_opt {
+        None => {
+            compiler_panic!(ExprPanic::InvalidMemberExpressionMemberNotFound);
+        }
+        Some(object_stmts) => object_stmts
+    }
+
+
 }
 
-fn parse_member_prop(member_prop: &MemberProp) -> String {
+fn parse_member_prop(member_prop: &MemberProp) -> ObjectIdent {
     match &member_prop{
         MemberProp::Ident(ident_name) => parse_ident_name(ident_name),
-        MemberProp::PrivateName(_private_name) => panic!("private name in props not allowed"),
-        MemberProp::Computed(_computed_prop_name) => panic!("computed props not allowed"),
+        MemberProp::PrivateName(_) => compiler_panic!(ExprPanic::PrivateNamePropNotAllowed),
+        MemberProp::Computed(_) => compiler_panic!(ExprPanic::ComputedPropNotAllowed),
     }
 }
 
@@ -2091,7 +2219,6 @@ fn parse_block(block_stmt: &BlockStmt, ctx: &CurrentContext, glob_ctx: &GlobalCo
         ps
     }).collect::<Vec<_>>();
     let scope = Scope{
-        name: None,
         statements: stmts
     };
     scope
