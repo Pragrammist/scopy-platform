@@ -13,5 +13,6 @@ swc_atoms = "9.0.0"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+wasm-encoder = "0.258.0"
 
 
