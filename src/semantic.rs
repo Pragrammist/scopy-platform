@@ -345,8 +345,8 @@ pub struct LoopStatement {
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct ConditionStatement {
     pub cond: ObjectDataValue,
-    pub false_scope: Option<Box<Statement>>,
-    pub true_scope: Box<Statement>
+    pub false_scope: Option<Box<ScopeStatement>>,
+    pub true_scope: Box<ScopeStatement>
 }
 
 #[allow(unused)]

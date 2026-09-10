@@ -4675,7 +4675,7 @@ mod parse_stmt_tests{
     use crate::unit_tests::assert_compiler_panic;
     use crate::{parse_decl, parse_stmt, AstGlobalContext, CurrentContext, GlobalContext, LiteralValue, ObjectDataValue, Statement, StmtPanic};
     use swc_common::{SyntaxContext, DUMMY_SP};
-    use swc_ecma_ast::{BindingIdent, BlockStmt, BreakStmt, CatchClause, Class, ClassDecl, ContinueStmt, DebuggerStmt, Decl, DoWhileStmt, EmptyStmt, Expr, ExprStmt, FnDecl, ForHead, ForInStmt, ForOfStmt, ForStmt, Function, Ident, IfStmt, LabeledStmt, Lit, NewExpr, Null, Number, Pat, ReturnStmt, Stmt, ThrowStmt, TryStmt, TsEnumDecl, TsInterfaceBody, TsInterfaceDecl, TsKeywordType, TsKeywordTypeKind, TsModuleDecl, TsModuleName, TsType, TsTypeAliasDecl, UsingDecl, VarDecl, VarDeclKind, VarDeclarator, WhileStmt, WithStmt};
+    use swc_ecma_ast::{BindingIdent, BlockStmt, Bool, BreakStmt, CatchClause, Class, ClassDecl, ContinueStmt, DebuggerStmt, Decl, DoWhileStmt, EmptyStmt, Expr, ExprStmt, FnDecl, ForHead, ForInStmt, ForOfStmt, ForStmt, Function, Ident, IfStmt, ImportDecl, ImportPhase, LabeledStmt, Lit, NewExpr, Null, Number, Pat, ReturnStmt, Stmt, Str, ThrowStmt, TryStmt, TsEnumDecl, TsInterfaceBody, TsInterfaceDecl, TsKeywordType, TsKeywordTypeKind, TsModuleDecl, TsModuleName, TsType, TsTypeAliasDecl, UsingDecl, VarDecl, VarDeclKind, VarDeclarator, WhileStmt, WithStmt};
 
     #[test]
     fn test_parse_block_stmt() {
@@ -4823,33 +4823,28 @@ mod parse_stmt_tests{
                 // Проверяем условие
                 assert_eq!(cond.cond, ObjectDataValue::Literal(LiteralValue::Null));
                 // Проверяем true-ветку (scope должен содержать объявление a)
-                match &*cond.true_scope {
-                    Statement::Scope(scope) => {
-                        assert_eq!(scope.statements.len(), 1);
-                        match &scope.statements[0] {
-                            Statement::Object(obj) => {
-                                assert_eq!(obj.name, "a");
-                                assert!(matches!(obj.value, ObjectDataValue::Literal(LiteralValue::Num(_))));
-                            }
-                            _ => panic!("Expected Object statement in true branch"),
-                        }
+                let scope = &*cond.true_scope;
+                assert_eq!(scope.statements.len(), 1);
+                match &scope.statements[0] {
+                    Statement::Object(obj) => {
+                        assert_eq!(obj.name, "a");
+                        assert!(matches!(obj.value, ObjectDataValue::Literal(LiteralValue::Num(_))));
                     }
-                    _ => panic!("Expected Scope in true branch"),
+                    _ => panic!("Expected Object statement in true branch"),
                 }
                 // Проверяем false-ветку (scope должен содержать объявление b)
+
                 match &cond.false_scope {
-                    Some(false_scope) => match &**false_scope {
-                        Statement::Scope(scope) => {
-                            assert_eq!(scope.statements.len(), 1);
-                            match &scope.statements[0] {
-                                Statement::Object(obj) => {
-                                    assert_eq!(obj.name, "b");
-                                    assert!(matches!(obj.value, ObjectDataValue::Literal(LiteralValue::Num(_))));
-                                }
-                                _ => panic!("Expected Object statement in false branch"),
-                            }
+                    Some(false_scope) => {
+                        let scope = &**false_scope;
+                        assert_eq!(scope.statements.len(), 1);
+                        match &scope.statements[0] {
+                        Statement::Object(obj) => {
+                            assert_eq!(obj.name, "b");
+                            assert!(matches!(obj.value, ObjectDataValue::Literal(LiteralValue::Num(_))));
                         }
-                        _ => panic!("Expected Scope in false branch"),
+                        _ => panic!("Expected Object statement in false branch"),
+                    }
                     }
                     None => panic!("Expected false branch to exist"),
                 }
@@ -4857,6 +4852,7 @@ mod parse_stmt_tests{
             _ => panic!("Expected Conditional statement"),
         }
     }
+
 
 
     #[test]
@@ -4932,6 +4928,227 @@ mod parse_stmt_tests{
             }
             _ => panic!("Expected Loop statement"),
         }
+    }
+
+    #[test]
+    fn test_parse_stmt_if_object_not_scope_panic() {
+        /*
+            js code:
+            if (true)
+                const x = 1;
+        */
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let stmt = Stmt::If(IfStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Bool(Bool {
+                span: DUMMY_SP,
+                value: true,
+            }))),
+            cons: Box::new(Stmt::Decl(Decl::Var(Box::new(VarDecl {
+                span: DUMMY_SP,
+                ctxt: SyntaxContext::empty(),
+                kind: VarDeclKind::Const,
+                declare: false,
+                decls: vec![VarDeclarator {
+                    span: DUMMY_SP,
+                    name: Pat::Ident(BindingIdent {
+                        id: Ident::new_no_ctxt("x".into(), DUMMY_SP),
+                        type_ann: None,
+                    }),
+                    init: Some(Box::new(Expr::Lit(Lit::Num(Number {
+                        span: DUMMY_SP,
+                        value: 1.0,
+                        raw: None,
+                    })))),
+                    definite: false,
+                }],
+            })))),
+            alt: None,
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::ObjectNotScope,
+        );
+    }
+
+    #[test]
+    fn test_parse_stmt_if_object_value_not_scope_panic() {
+        /*
+            js code:
+            if (true)
+                true;
+        */
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let stmt = Stmt::If(IfStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Bool(Bool {
+                span: DUMMY_SP,
+                value: true,
+            }))),
+            cons: Box::new(Stmt::Expr(ExprStmt {
+                span: DUMMY_SP,
+                expr: Box::new(Expr::Lit(Lit::Bool(Bool {
+                    span: DUMMY_SP,
+                    value: true,
+                }))),
+            })),
+            alt: None,
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::ObjectValueNotScope,
+        );
+    }
+
+    #[test]
+    fn test_parse_stmt_if_conditional_not_scope_panic() {
+        /*
+            js code:
+            if (true)
+                if (false) {}
+        */
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let stmt = Stmt::If(IfStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Bool(Bool {
+                span: DUMMY_SP,
+                value: true,
+            }))),
+            cons: Box::new(Stmt::If(IfStmt {
+                span: DUMMY_SP,
+                test: Box::new(Expr::Lit(Lit::Bool(Bool {
+                    span: DUMMY_SP,
+                    value: false,
+                }))),
+                cons: Box::new(Stmt::Block(BlockStmt {
+                    span: DUMMY_SP,
+                    ctxt: SyntaxContext::empty(),
+                    stmts: vec![],
+                })),
+                alt: None,
+            })),
+            alt: None,
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::ConditionalNotScope,
+        );
+    }
+
+    #[test]
+    fn test_parse_stmt_if_loop_not_scope_panic() {
+        /*
+            js code:
+            if (true)
+                while (true) {}
+        */
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let stmt = Stmt::If(IfStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Bool(Bool {
+                span: DUMMY_SP,
+                value: true,
+            }))),
+            cons: Box::new(Stmt::While(WhileStmt {
+                span: DUMMY_SP,
+                test: Box::new(Expr::Lit(Lit::Bool(Bool {
+                    span: DUMMY_SP,
+                    value: true,
+                }))),
+                body: Box::new(Stmt::Block(BlockStmt {
+                    span: DUMMY_SP,
+                    ctxt: SyntaxContext::empty(),
+                    stmts: vec![],
+                })),
+            })),
+            alt: None,
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::LoopNotScope,
+        );
+    }
+
+    #[test]
+    fn test_parse_stmt_if_import_not_scope_panic() {
+        /*
+            js code:
+            if (true)
+                import x from "x";
+        */
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let stmt = Stmt::If(IfStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Bool(Bool {
+                span: DUMMY_SP,
+                value: true,
+            }))),
+            cons: Box::new(Stmt::Decl(Decl::Var(Box::from(VarDecl {
+                span: DUMMY_SP,
+                ctxt: SyntaxContext::empty(),
+                kind: VarDeclKind::Const,
+                declare: false,
+                decls: vec![],
+            })))),
+            alt: None,
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::ImportNotScope,
+        );
+    }
+
+    #[test]
+    fn test_parse_stmt_if_export_not_scope_panic() {
+        /*
+            js code:
+            if (true)
+                export const x = 1;
+        */
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let stmt = Stmt::If(IfStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Bool(Bool {
+                span: DUMMY_SP,
+                value: true,
+            }))),
+            cons: Box::new(Stmt::Decl(Decl::Var(Box::from(VarDecl {
+                span: DUMMY_SP,
+                ctxt: SyntaxContext::empty(),
+                kind: VarDeclKind::Const,
+                declare: false,
+                decls: vec![],
+            })))),
+            alt: None,
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::ExportNotScope,
+        );
     }
 
     #[test]

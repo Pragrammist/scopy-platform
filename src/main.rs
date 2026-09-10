@@ -1,5 +1,5 @@
 mod unit_tests;
-mod wasm_ir;
+mod low_ir;
 mod semantic;
 
 use core::{panic};
@@ -793,6 +793,12 @@ enum StmtPanic {
     VarNotAllowed,
     LetNotAllowed,
     MissingInitializer,
+    ObjectNotScope,
+    ObjectValueNotScope,
+    ConditionalNotScope,
+    LoopNotScope,
+    ImportNotScope,
+    ExportNotScope,
 }
 
 impl std::fmt::Display for StmtPanic {
@@ -821,6 +827,12 @@ impl std::fmt::Display for StmtPanic {
             Self::VarNotAllowed => write!(f, "Var not allowed"),
             Self::LetNotAllowed => write!(f, "Let not allowed"),
             Self::MissingInitializer => write!(f, "Missing initializer error"),
+            Self::ObjectNotScope => write!(f, "Object not scope"),
+            Self::ObjectValueNotScope => write!(f, "Object value not scope"),
+            Self::ConditionalNotScope => write!(f, "Conditional not scope"),
+            Self::LoopNotScope => write!(f, "Loop not scope"),
+            Self::ImportNotScope => write!(f, "Import not scope"),
+            Self::ExportNotScope => write!(f, "Export not scope"),
         }
     }
 }
@@ -1898,14 +1910,14 @@ fn parse_block(block_stmt: &BlockStmt, ctx: &CurrentContext, glob_ctx: &GlobalCo
 
 fn parse_if(if_stmt: &IfStmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ConditionStatement {
 
-    let cons_stmt = parse_stmt(&if_stmt.cons, ctx, glob_ctx, ast_global_context);
+    let cons_stmt = parse_stmt_as_scope(parse_stmt(&if_stmt.cons, ctx, glob_ctx, ast_global_context));
 
     let test_expr = parse_expr(&if_stmt.test, ctx, glob_ctx, ast_global_context);
 
 
 
     let else_stmt = match &if_stmt.alt{
-        Some(r) =>  Some(Box::new(parse_stmt(&r, ctx, glob_ctx, ast_global_context))),
+        Some(r) =>  Some(Box::new(parse_stmt_as_scope(parse_stmt(&r, ctx, glob_ctx, ast_global_context)))),
         None => None,
     };
     
@@ -1915,6 +1927,18 @@ fn parse_if(if_stmt: &IfStmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, as
         true_scope: Box::new(cons_stmt)
     };
     cond
+}
+
+fn parse_stmt_as_scope(statement: Statement) -> ScopeStatement {
+    match statement {
+        Statement::Scope(scope) => scope,
+        Statement::Object(_) => compiler_panic!(StmtPanic::ObjectNotScope),
+        Statement::ObjectValue(_) => compiler_panic!(StmtPanic::ObjectValueNotScope),
+        Statement::Conditional(_) => compiler_panic!(StmtPanic::ConditionalNotScope),
+        Statement::Loop(_) => compiler_panic!(StmtPanic::LoopNotScope),
+        Statement::Import(_) => compiler_panic!(StmtPanic::ImportNotScope),
+        Statement::Export(_) => compiler_panic!(StmtPanic::ExportNotScope),
+    }
 }
 
 
