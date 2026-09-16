@@ -287,39 +287,37 @@ pub enum Statement {
     Conditional(ConditionStatement),
     Loop(LoopStatement),
     Scope(ScopeStatement),
-    Import (ImportStatement),
-    Export (ExportStatement),
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-pub struct ImportStatement {
-    pub val: Vec<ObjectData>,
-    pub src: ObjectIdent,
-}
+// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+// pub struct ImportStatement {
+//     pub val: Vec<ObjectData>,
+//     pub src: ObjectIdent,
+// }
+//
 
 
-
-#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-pub enum ExportStatement {
-    ObjectExport(ExportObject),
-    ObjectIdentExport(ExportObjectIdent)
-}
-
-
-#[allow(unused)]
-#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-pub struct ExportObject{
-    pub val: ObjectData,
-    pub src: ObjectIdent
-}
+// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+// pub enum ExportStatement {
+//     ObjectExport(ExportObject),
+//     ObjectIdentExport(ExportObjectIdent)
+// }
 
 
-#[allow(unused)]
-#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-pub struct ExportObjectIdent{
-    pub src: ObjectIdent,
-    pub val: Vec<ObjectIdent>
-}
+// #[allow(unused)]
+// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+// pub struct ExportObject{
+//     pub val: ObjectData,
+//     pub src: ObjectIdent
+// }
+
+
+// #[allow(unused)]
+// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+// pub struct ExportObjectIdent{
+//     pub src: ObjectIdent,
+//     pub val: Vec<ObjectIdent>
+// }
 
 
 
@@ -332,12 +330,18 @@ pub struct  ScopyModule{
     pub name: ObjectIdent,
     pub statements: Vec<Statement>,
 }
+#[allow(unused)]
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+
+pub struct ScopyProject{
+    pub modules: Vec<ScopyModule>,
+}
 
 #[allow(unused)]
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct LoopStatement {
     pub cond: ObjectDataValue,
-    pub loop_scope: Box<Statement>
+    pub loop_scope: Box<ScopeStatement>
 }
 
 

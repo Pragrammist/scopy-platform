@@ -1,0 +1,12 @@
+[package]
+name = "wasm-runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmtime = { version = "=48.0.2", features = ["cranelift"] }
+wasmtime-wasi = "=48.0.2"
+
+[[bin]]
+name = "wasm-runner"
+path = "src/main.rs"

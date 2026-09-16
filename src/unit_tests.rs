@@ -19,11 +19,11 @@ where
 
 #[cfg(test)]
 mod get_attributes_tests {
-    use crate::{get_attributes, parse_attributes, parse_attributes_from_comments, AstGlobalContext};
     use swc_atoms::Atom;
     use swc_common::comments::{Comment, CommentKind, Comments};
     use swc_common::DUMMY_SP;
-
+    use crate::scopy_ir::{get_attributes, parse_attributes, parse_attributes_from_comments};
+    use crate::semantic::AstGlobalContext;
 
     #[test]
     fn test_get_attributes(){
@@ -335,13 +335,13 @@ mod get_attributes_tests {
 
 #[cfg(test)]
 mod parse_ident_tests {
-    use crate::parse_pat;
+
     use crate::unit_tests::assert_compiler_panic;
-    use crate::{parse_ident, ExprPanic};
     use swc_atoms::Atom;
     use swc_common::{SyntaxContext, DUMMY_SP};
     use swc_ecma_ast::{ArrayPat, AssignPat, Expr, Ident, Invalid, Lit, Null, ObjectPat, RestPat};
     use swc_ecma_ast::{BindingIdent, Pat};
+    use crate::scopy_ir::{parse_ident, parse_pat, ExprPanic};
 
     #[test]
     fn test_parse_ident_as_ident(){
@@ -527,10 +527,11 @@ mod parse_ident_tests {
 #[cfg(test)]
 mod parse_expr_tests {
     use crate::unit_tests::assert_compiler_panic;
-    use crate::{parse_expr, AnotherObjectValue, AnotherObjectValuePath, AstGlobalContext, BinaryOpType, CurrentContext, ExprPanic, FunctionCallResultValue, FunctionValue, GlobalContext, LitValueBool, LitValueNum, LitValueString, LiteralValue, ObjectData, ObjectDataValue, ObjectValue, ScopeStatement, Statement};
     use swc_atoms::{Atom, Wtf8Atom};
     use swc_common::{SyntaxContext, DUMMY_SP};
     use swc_ecma_ast::{ArrayLit, ArrayPat, ArrowExpr, AssignExpr, AssignOp, AssignPat, AssignProp, AssignTarget, AwaitExpr, BigInt, BinExpr, BinaryOp, BindingIdent, BlockStmt, BlockStmtOrExpr, Bool, CallExpr, Callee, ClassExpr, ComputedPropName, CondExpr, Expr, ExprOrSpread, FnExpr, Function, GetterProp, Ident, IdentName, Import, Invalid, JSXMemberExpr, JSXObject, KeyValueProp, Lit, MemberExpr, MemberProp, MetaPropExpr, MetaPropKind, MethodProp, NewExpr, Null, Number, ObjectLit, ObjectPat, OptChainBase, OptChainExpr, ParenExpr, Pat, PrivateName, Prop, PropName, PropOrSpread, Regex, RestPat, SeqExpr, SetterProp, SpreadElement, Str, Super, SuperProp, SuperPropExpr, TaggedTpl, ThisExpr, Tpl, TsAsExpr, TsConstAssertion, TsInstantiation, TsKeywordType, TsKeywordTypeKind, TsNonNullExpr, TsSatisfiesExpr, TsType, TsTypeAssertion, TsTypeParamInstantiation, UnaryExpr, UnaryOp, UpdateExpr, UpdateOp, YieldExpr};
+    use crate::scopy_ir::{parse_expr, ExprPanic};
+    use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, AstGlobalContext, BinaryOpType, CurrentContext, FunctionCallResultValue, FunctionValue, GlobalContext, LitValueBool, LitValueNum, LitValueString, LiteralValue, ObjectData, ObjectDataValue, ObjectValue, ScopeStatement, Statement};
 
     #[test]
     fn parse_object_lit_key_value_test(){
@@ -4673,9 +4674,10 @@ mod parse_expr_tests {
 #[cfg(test)]
 mod parse_stmt_tests{
     use crate::unit_tests::assert_compiler_panic;
-    use crate::{parse_decl, parse_stmt, AstGlobalContext, CurrentContext, GlobalContext, LiteralValue, ObjectDataValue, Statement, StmtPanic};
     use swc_common::{SyntaxContext, DUMMY_SP};
-    use swc_ecma_ast::{BindingIdent, BlockStmt, Bool, BreakStmt, CatchClause, Class, ClassDecl, ContinueStmt, DebuggerStmt, Decl, DoWhileStmt, EmptyStmt, Expr, ExprStmt, FnDecl, ForHead, ForInStmt, ForOfStmt, ForStmt, Function, Ident, IfStmt, ImportDecl, ImportPhase, LabeledStmt, Lit, NewExpr, Null, Number, Pat, ReturnStmt, Stmt, Str, ThrowStmt, TryStmt, TsEnumDecl, TsInterfaceBody, TsInterfaceDecl, TsKeywordType, TsKeywordTypeKind, TsModuleDecl, TsModuleName, TsType, TsTypeAliasDecl, UsingDecl, VarDecl, VarDeclKind, VarDeclarator, WhileStmt, WithStmt};
+    use swc_ecma_ast::{BindingIdent, BlockStmt, Bool, BreakStmt, CatchClause, Class, ClassDecl, ContinueStmt, DebuggerStmt, Decl, DoWhileStmt, EmptyStmt, Expr, ExprStmt, FnDecl, ForHead, ForInStmt, ForOfStmt, ForStmt, Function, Ident, IfStmt, LabeledStmt, Lit, NewExpr, Null, Number, Pat, ReturnStmt, Stmt, ThrowStmt, TryStmt, TsEnumDecl, TsInterfaceBody, TsInterfaceDecl, TsKeywordType, TsKeywordTypeKind, TsModuleDecl, TsModuleName, TsType, TsTypeAliasDecl, UsingDecl, VarDecl, VarDeclKind, VarDeclarator, WhileStmt, WithStmt};
+    use crate::scopy_ir::{parse_decl, parse_stmt, StmtPanic};
+    use crate::semantic::{AstGlobalContext, CurrentContext, GlobalContext, LiteralValue, ObjectDataValue, Statement};
 
     #[test]
     fn test_parse_block_stmt() {
@@ -4912,22 +4914,185 @@ mod parse_stmt_tests{
                 // Проверяем условие
                 assert_eq!(loop_stmt.cond, ObjectDataValue::Literal(LiteralValue::Null));
                 // Проверяем тело
-                match &*loop_stmt.loop_scope {
-                    Statement::Scope(scope) => {
-                        assert_eq!(scope.statements.len(), 1);
-                        match &scope.statements[0] {
-                            Statement::Object(obj) => {
-                                assert_eq!(obj.name, "x");
-                                assert_eq!(obj.value, ObjectDataValue::Literal(LiteralValue::Null));
-                            }
-                            _ => panic!("Expected Object statement in loop body"),
-                        }
+                let scope = &*loop_stmt.loop_scope;
+                assert_eq!(scope.statements.len(), 1);
+                match &scope.statements[0] {
+                    Statement::Object(obj) => {
+                        assert_eq!(obj.name, "x");
+                        assert_eq!(obj.value, ObjectDataValue::Literal(LiteralValue::Null));
                     }
-                    _ => panic!("Expected Scope in loop body"),
+                    _ => panic!("Expected Object statement in loop body"),
                 }
             }
             _ => panic!("Expected Loop statement"),
         }
+    }
+
+    #[test]
+    fn test_parse_stmt_while_object_not_scope_panic() {
+        /*
+            js code:
+            while (null)
+                const x = null;
+        */
+
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let body = Stmt::Decl(Decl::Var(Box::new(VarDecl {
+            span: DUMMY_SP,
+            ctxt: Default::default(),
+            kind: VarDeclKind::Const,
+            decls: vec![
+                VarDeclarator {
+                    span: DUMMY_SP,
+                    name: Pat::Ident(BindingIdent {
+                        id: Ident::new_no_ctxt("x".into(), DUMMY_SP),
+                        type_ann: None,
+                    }),
+                    init: Some(Box::new(
+                        Expr::Lit(Lit::Null(Null {
+                            span: DUMMY_SP,
+                        }))
+                    )),
+                    definite: false,
+                }
+            ],
+            declare: false,
+        })));
+
+        let stmt = Stmt::While(WhileStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Null(Null {
+                span: DUMMY_SP,
+            }))),
+            body: Box::new(body),
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::ObjectNotScope,
+        );
+    }
+
+    #[test]
+    fn test_parse_stmt_while_object_value_not_scope_panic() {
+        /*
+            js code:
+            while (null)
+                null;
+        */
+
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let body = Stmt::Expr(ExprStmt {
+            span: DUMMY_SP,
+            expr: Box::new(
+                Expr::Lit(Lit::Null(Null {
+                    span: DUMMY_SP,
+                }))
+            ),
+        });
+
+        let stmt = Stmt::While(WhileStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Null(Null {
+                span: DUMMY_SP,
+            }))),
+            body: Box::new(body),
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::ObjectValueNotScope,
+        );
+    }
+
+    #[test]
+    fn test_parse_stmt_while_conditional_not_scope_panic() {
+        /*
+            js code:
+            while (null)
+                if (true) {}
+        */
+
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let body = Stmt::If(IfStmt {
+            span: DUMMY_SP,
+            test: Box::new(
+                Expr::Lit(Lit::Bool(Bool {
+                    span: DUMMY_SP,
+                    value: true,
+                }))
+            ),
+            cons: Box::new(
+                Stmt::Block(BlockStmt {
+                    span: DUMMY_SP,
+                    ctxt: SyntaxContext::empty(),
+                    stmts: vec![],
+                })
+            ),
+            alt: None,
+        });
+
+        let stmt = Stmt::While(WhileStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Null(Null {
+                span: DUMMY_SP,
+            }))),
+            body: Box::new(body),
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::ConditionalNotScope,
+        );
+    }
+
+    #[test]
+    fn test_parse_stmt_while_loop_not_scope_panic() {
+        /*
+            js code:
+            while (null)
+                while (null) {}
+        */
+
+        let ctx = CurrentContext::default();
+        let glob_ctx = GlobalContext::default();
+        let ast_ctx = AstGlobalContext::default();
+
+        let inner_while = Stmt::While(WhileStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Null(Null {
+                span: DUMMY_SP,
+            }))),
+            body: Box::new(
+                Stmt::Block(BlockStmt {
+                    span: DUMMY_SP,
+                    ctxt: SyntaxContext::empty(),
+                    stmts: vec![],
+                })
+            ),
+        });
+
+        let stmt = Stmt::While(WhileStmt {
+            span: DUMMY_SP,
+            test: Box::new(Expr::Lit(Lit::Null(Null {
+                span: DUMMY_SP,
+            }))),
+            body: Box::new(inner_while),
+        });
+
+        assert_compiler_panic(
+            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
+            StmtPanic::LoopNotScope,
+        );
     }
 
     #[test]
@@ -5085,71 +5250,6 @@ mod parse_stmt_tests{
         );
     }
 
-    #[test]
-    fn test_parse_stmt_if_import_not_scope_panic() {
-        /*
-            js code:
-            if (true)
-                import x from "x";
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let stmt = Stmt::If(IfStmt {
-            span: DUMMY_SP,
-            test: Box::new(Expr::Lit(Lit::Bool(Bool {
-                span: DUMMY_SP,
-                value: true,
-            }))),
-            cons: Box::new(Stmt::Decl(Decl::Var(Box::from(VarDecl {
-                span: DUMMY_SP,
-                ctxt: SyntaxContext::empty(),
-                kind: VarDeclKind::Const,
-                declare: false,
-                decls: vec![],
-            })))),
-            alt: None,
-        });
-
-        assert_compiler_panic(
-            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
-            StmtPanic::ImportNotScope,
-        );
-    }
-
-    #[test]
-    fn test_parse_stmt_if_export_not_scope_panic() {
-        /*
-            js code:
-            if (true)
-                export const x = 1;
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let stmt = Stmt::If(IfStmt {
-            span: DUMMY_SP,
-            test: Box::new(Expr::Lit(Lit::Bool(Bool {
-                span: DUMMY_SP,
-                value: true,
-            }))),
-            cons: Box::new(Stmt::Decl(Decl::Var(Box::from(VarDecl {
-                span: DUMMY_SP,
-                ctxt: SyntaxContext::empty(),
-                kind: VarDeclKind::Const,
-                declare: false,
-                decls: vec![],
-            })))),
-            alt: None,
-        });
-
-        assert_compiler_panic(
-            || parse_stmt(&stmt, &ctx, &glob_ctx, &ast_ctx),
-            StmtPanic::ExportNotScope,
-        );
-    }
 
     #[test]
     fn test_parse_stmt_empty_panic() {
@@ -5920,9 +6020,11 @@ mod parse_import_export{
 
     // ======== Тесты на ошибки модульных деклараций ========
 
+    use std::collections::HashMap;
     use swc_common::{SyntaxContext, DUMMY_SP};
-    use swc_ecma_ast::{BindingIdent, BlockStmt, Class, ClassDecl, ClassExpr, Decl, DefaultDecl, ExportAll, ExportDecl, ExportDefaultDecl, ExportDefaultExpr, Expr, ExprStmt, FnDecl, Function, Ident, Lit, ModuleDecl, ModuleItem, Null, Number, Pat, Stmt, Str, TsEnumDecl, TsExportAssignment, TsExternalModuleRef, TsImportEqualsDecl, TsInterfaceBody, TsInterfaceDecl, TsKeywordType, TsKeywordTypeKind, TsModuleDecl, TsModuleName, TsModuleRef, TsNamespaceExportDecl, TsType, TsTypeAliasDecl, UsingDecl, VarDecl, VarDeclKind, VarDeclarator};
-    use crate::{parse_module_item, AstGlobalContext, CurrentContext, ExportStatement, GlobalContext, LiteralValue, ModuleDeclPanic, ObjectDataValue, Statement};
+    use swc_ecma_ast::{BindingIdent, BlockStmt, Class, ClassDecl, ClassExpr, Decl, DefaultDecl, ExportAll, ExportDecl, ExportDefaultDecl, ExportDefaultExpr, Expr, ExprStmt, FnDecl, Function, Ident, ImportDecl, ImportNamedSpecifier, ImportPhase, ImportSpecifier, Lit, ModuleDecl, ModuleItem, Null, Number, Pat, Stmt, Str, TsEnumDecl, TsExportAssignment, TsExternalModuleRef, TsImportEqualsDecl, TsInterfaceBody, TsInterfaceDecl, TsKeywordType, TsKeywordTypeKind, TsModuleDecl, TsModuleName, TsModuleRef, TsNamespaceExportDecl, TsType, TsTypeAliasDecl, UsingDecl, VarDeclarator};
+    use crate::scopy_ir::{parse_module_item, ModuleDeclPanic};
+    use crate::semantic::{AstGlobalContext, CurrentContext, CurrentContextType, GlobalContext, LiteralValue, ModuleContext, ObjectData, ObjectDataValue, ObjectValue, ScopyModule, Statement};
     use crate::unit_tests::assert_compiler_panic;
 
     #[test]
@@ -6330,49 +6432,99 @@ mod parse_import_export{
     }
 
     #[test]
-    fn test_parse_module_item_export_var_success() {
+    fn test_parse_module_item_import_success() {
         /*
             js code:
-            export const x = null;
+            import {string} from "default.js";
         */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
+
+        let ctx = CurrentContext {
+            context_type: CurrentContextType::ModuleContext(ModuleContext {
+                name: "main.js".to_string(),
+            }),
+            current_module_name: "main.js".to_string(),
+            prev: None,
+            current_statements: vec![],
+        };
+
+        let default_module = ScopyModule {
+            name: "default.js".to_string(),
+            statements: vec![
+                Statement::Object(ObjectData {
+                    name: "string".to_string(),
+                    is_mutable: false,
+                    attrs: vec![],
+                    value: ObjectDataValue::Object(ObjectValue {
+                        props: vec![],
+                    }),
+                }),
+            ],
+        };
+
+        let glob_ctx = GlobalContext {
+            parsed_modules: HashMap::from([
+                ("default.js".to_string(), default_module),
+            ]),
+        };
+
         let ast_ctx = AstGlobalContext::default();
 
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+        let module_item = ModuleItem::ModuleDecl(ModuleDecl::Import(ImportDecl {
             span: DUMMY_SP,
-            decl: Decl::Var(Box::new(
-                VarDecl {
+            specifiers: vec![
+                ImportSpecifier::Named(ImportNamedSpecifier {
                     span: DUMMY_SP,
-                    ctxt: Default::default(),
-                    kind: VarDeclKind::Const,
-                    decls: vec![
-                        VarDeclarator {
-                            span: DUMMY_SP,
-                            name: Pat::Ident(BindingIdent {
-                                id: Ident::new_no_ctxt("x".into(), DUMMY_SP),
-                                type_ann: None,
-                            }),
-                            init: Some(Box::new(Expr::Lit(Lit::Null(Null { span: DUMMY_SP })))),
-                            definite: false,
-                        }
-                    ],
-                    declare: false,
-                }
-            )),
+                    local: Ident::new_no_ctxt("string".into(), DUMMY_SP),
+                    imported: None,
+                    is_type_only: false,
+                }),
+            ],
+            src: Box::new(Str {
+                span: DUMMY_SP,
+                value: "default.js".into(),
+                raw: None,
+            }),
+            type_only: false,
+            with: None,
+            phase: ImportPhase::Evaluation,
         }));
 
-        let result = parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx);
+        let result = parse_module_item(
+            &module_item,
+            &ctx,
+            &glob_ctx,
+            &ast_ctx,
+        );
 
         match result {
-            Statement::Export(ExportStatement::ObjectExport(export_obj)) => {
-                assert_eq!(export_obj.val.name, "x");
-                assert_eq!(export_obj.val.value, ObjectDataValue::Literal(LiteralValue::Null));
-                assert_eq!(export_obj.val.is_mutable, false);
-                assert!(export_obj.val.attrs.is_empty());
-                assert_eq!(export_obj.src, ctx.current_module_name);
+            Statement::Object(import_obj) => {
+                assert_eq!(import_obj.name, "default.js");
+                assert_eq!(import_obj.is_mutable, false);
+                assert!(import_obj.attrs.is_empty());
+
+                match import_obj.value {
+                    ObjectDataValue::Object(object) => {
+                        assert_eq!(object.props.len(), 1);
+
+                        let imported = &object.props[0];
+
+                        assert_eq!(imported.name, "string");
+                        assert_eq!(imported.is_mutable, false);
+                        assert_eq!(imported.attrs, vec![]);
+
+                        assert_eq!(
+                            imported.value,
+                            ObjectDataValue::Object(ObjectValue {
+                                props: vec![],
+                            })
+                        );
+                    }
+
+                    _ => assert!(false, "Expected Object value"),
+                }
             }
-            _ => assert!(false, "Expected ObjectExport statement, got {:?}", result)
+
+            _ => assert!(false, "Expected imported module object, got {:?}", result),
         }
     }
 
