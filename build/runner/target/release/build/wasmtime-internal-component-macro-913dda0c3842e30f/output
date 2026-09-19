@@ -1,2 +1,0 @@
-cargo:rerun-if-changed=build.rs
-cargo:rustc-env=DEBUG_OUTPUT_DIR=/home/vi/RustroverProjects/scopy-platform/build/runner/target/release/build/wasmtime-internal-component-macro-913dda0c3842e30f/out

@@ -1,2 +1,0 @@
-cargo:rustc-env=COMPILER_VERSION=48.0.2
-cargo:rustc-env=USE_MTIME=false
