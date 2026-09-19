@@ -1,0 +1,11 @@
+/home/vi/RustroverProjects/scopy-platform/build/runner/target/release/deps/pulley_interpreter-325dff58fe95e33c.d: /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/lib.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/regs.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/imms.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/op.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/opcode.rs
+
+/home/vi/RustroverProjects/scopy-platform/build/runner/target/release/deps/libpulley_interpreter-325dff58fe95e33c.rlib: /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/lib.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/regs.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/imms.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/op.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/opcode.rs
+
+/home/vi/RustroverProjects/scopy-platform/build/runner/target/release/deps/libpulley_interpreter-325dff58fe95e33c.rmeta: /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/lib.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/regs.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/imms.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/op.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/opcode.rs
+
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/lib.rs:
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/regs.rs:
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/imms.rs:
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/op.rs:
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pulley-interpreter-48.0.2/src/opcode.rs:

@@ -14,7 +14,7 @@ use wasm_encoder::{
     ValType,
 };
 use crate::low_ir::ChainedTag::BinOperation;
-use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, BinaryObjectValue, BinaryOpType, FunctionCallResultValue, FunctionValue, LiteralValue, ObjectData, ObjectDataValue, ObjectIdent, ObjectValue, ScopeStatement, ScopyModule, ScopyProject, Statement};
+use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, BinaryObjectValue, BinaryOpType, ConditionStatement, FunctionCallResultValue, FunctionValue, LiteralValue, LoopStatement, ObjectData, ObjectDataValue, ObjectIdent, ObjectValue, ScopeStatement, ScopyModule, ScopyProject, Statement};
 
 trait InsertMany<T> {
     fn insert_many<I: IntoIterator<Item = T>>(&mut self, iter: I);
@@ -92,7 +92,7 @@ pub fn convert_to_lowering_ir(scopy_project: &ScopyProject) -> Vec<OperationUnit
 
 
 
-        let chained_tags = vec![ChainedTag::ModuleId(start_owner_id)];
+        let chained_tags = vec![ChainedTag::Ident(ChainedTagIdent::ModuleId(start_owner_id))];
 
 
         let operation_units = module.statements.iter().flat_map(|stmt|{
@@ -127,7 +127,7 @@ impl OperationUnit {
 
 
 type AlignSize = i64;
-pub type OwnerUnitId = i64;
+pub type OwnerUnitId = Vec<ObjectIdent>;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct OwnerUnitIdIdentMap{
@@ -141,11 +141,7 @@ pub struct OwnerUnitIdIdentMap{
 pub enum ChainedTag {
     CallChainStart,
     CallChainEnd,
-    Ident(OwnerUnitId),
-    Property(OwnerUnitId),
-    FuncCall,
-    FuncArg,
-    FuncResult(OwnerUnitId),
+    Ident(ChainedTagIdent),
     FuncInit,
     BinOperation(BinaryOpTypeOperation),
     LitOperation(LitOperationType),
@@ -157,8 +153,19 @@ pub enum ChainedTag {
     StartCond,
     EndCond,
     EmptyScope,
-    ModuleId(OwnerUnitId),
     OwnerIdMap(OwnerUnitIdIdentMap)
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub enum ChainedTagIdent{
+    Object(OwnerUnitId),
+    Function(OwnerUnitId),
+    ModuleId(OwnerUnitId),
+    FuncResult(OwnerUnitId),
+    Property(OwnerUnitId),
+    FuncArg(OwnerUnitId),
+    AnotherObject(OwnerUnitId),
+    FunctionCall(OwnerUnitId),
 }
 
 
@@ -240,10 +247,11 @@ fn convert_obj (obj: &ObjectData, current_ctx: &CurrentOperationContext, chained
 
     let cur_mtx = &mut current_ctx.clone();
 
-    let obj_id = cur_owner_id + 1;
+    // let obj_id = cur_owner_id + 1;
+    let obj_id = cur_owner_id;
     let chained_tags = [
         chained_tags,
-        vec![ChainedTag::Ident(obj_id), ChainedTag::OwnerIdMap(OwnerUnitIdIdentMap{ id: obj_id, idents: vec![obj.name.clone()]
+        vec![ChainedTag::OwnerIdMap(OwnerUnitIdIdentMap{ id: obj_id, idents: vec![obj.name.clone()]
         }), ]].concat();
     let oper = vec![OperationUnit::new(chained_tags.clone(), none_data(), obj_id)];
 
@@ -266,28 +274,22 @@ fn convert_object_data_value(
     let d = match &obj_data_val{
         ObjectDataValue::Enum(_) => todo!(),
         ObjectDataValue::Object(object_val) => {
-            let res = convert_obj_val(&object_val, current_context, chained_tags,current_id);
-            res
+            convert_obj_val(&object_val, current_context, chained_tags,current_id)
         },
         ObjectDataValue::AnotherObject(another_obj) => {
-            let d = convert_another_object(another_obj, current_context, chained_tags, current_id);
-            d
+            convert_another_object(another_obj, current_context, chained_tags, current_id)
         },
         ObjectDataValue::Literal(literal) => {
-            let d = convert_literal(literal, chained_tags, current_id);
-            d
+            convert_literal(literal, chained_tags, current_id)
         },
         ObjectDataValue::Function(func) => {
-            let d = parse_func_val(func, current_context, chained_tags, current_id);
-            d
+            parse_func_val(func, current_context, chained_tags, current_id)
         }
         ObjectDataValue::FunctionCall(func_call) => {
-            let d = parse_func_call(func_call, current_context, chained_tags, current_id);
-            d
+            parse_func_call(func_call, current_context, chained_tags, current_id)
         }
         ObjectDataValue::Binary(bin) => {
-            let d = convert_bin(bin, current_context, chained_tags, current_id);
-            d
+            convert_bin(bin, current_context, chained_tags, current_id)
         }
     };
     d
@@ -326,9 +328,11 @@ fn parse_func_call(func_call: &FunctionCallResultValue, current_context: &Curren
 }
 
 fn parse_func_cal_param (func_call: &FunctionCallResultValue, current_context: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, current_id: OwnerUnitId) -> Vec<OperationUnit> {
-    let chained_tag = [chained_tags.clone(), vec![ChainedTag::FuncCall]].concat();
+    let mut cur_virtual_obj: i64 = current_id as i64;
     let args_operations = func_call.args.iter().flat_map(|m| {
-        let res = convert_object_data_value(m, current_context, chained_tags.clone(), current_id);
+        cur_virtual_obj += 1;
+        let chained_tag = [chained_tags.clone(), vec![ChainedTag::Ident(ChainedTagIdent::FunctionCall(cur_virtual_obj))]].concat();
+        let res = convert_object_data_value(m, current_context, chained_tags.clone(), cur_virtual_obj);
         res
     }).collect::<Vec<_>>();
     args_operations
@@ -336,7 +340,7 @@ fn parse_func_cal_param (func_call: &FunctionCallResultValue, current_context: &
 
 fn parse_func_call_result (func_call: &FunctionCallResultValue, current_context: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, current_id: OwnerUnitId) -> Vec<OperationUnit> {
     let chained_tags = vec![
-        vec![ChainedTag::FuncResult(current_id)],
+        vec![ChainedTag::Ident(ChainedTagIdent::FuncResult(current_id))],
         chained_tags.clone()
     ].concat();
     let result_operation = convert_object_data_value(&func_call.result, current_context, chained_tags.clone(), current_id);
@@ -372,14 +376,16 @@ fn fn_result_data(current_id: OwnerUnitId, chained_tags: Vec<ChainedTag>) -> Vec
 
 
 fn parse_func_result(func: &FunctionValue, current_context: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, current_id: OwnerUnitId) -> Vec<OperationUnit> {
-    let chained_tags = [chained_tags.clone(), vec![ChainedTag::FuncResult(current_id)]].concat();
-    let oper_unit = convert_obj(&func.result, current_context, chained_tags.clone(), current_id);
+    let obj_id = current_id + 1 as OwnerUnitId;
+    let chained_tags = [chained_tags.clone(), vec![ChainedTag::Ident(ChainedTagIdent::FuncResult(obj_id))]].concat();
+    let oper_unit = convert_obj(&func.result, current_context, chained_tags.clone(), obj_id);
     oper_unit
 }
 
 fn parse_func_params(func: &FunctionValue, current_context: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, current_id: OwnerUnitId) -> Vec<OperationUnit> {
-    let chained_tags = [chained_tags.clone(), vec![ChainedTag::FuncArg]].concat();
-    let params = func.params.iter().flat_map(|p| convert_obj(p, current_context, chained_tags.clone(), current_id)).collect::<Vec<_>>();
+    let obj_id = current_id + 1 as OwnerUnitId;
+    let chained_tags = [chained_tags.clone(), vec![ChainedTag::Ident(ChainedTagIdent::FuncArg(obj_id))]].concat();
+    let params = func.params.iter().flat_map(|p| convert_obj(p, current_context, chained_tags.clone(), obj_id)).collect::<Vec<_>>();
     params
 }
 
@@ -444,7 +450,7 @@ fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &Cu
 
 fn convert_object_id_to_operation(current_context: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, ident_path: Vec<ObjectIdent>) -> OperationUnit{
     let id =  find_id_in_context(current_context, ident_path);
-    let chained_tags = [chained_tags, vec![ChainedTag::Ident(id.clone())]].concat();
+    let chained_tags = [chained_tags, vec![ChainedTag::Ident(ChainedTagIdent::AnotherObject(id.clone()))]].concat();
     OperationUnit::new(chained_tags, id.to_le_bytes().to_vec(), id)
 }
 
@@ -529,12 +535,7 @@ fn convert_obj_val(object_val: &ObjectValue, current_ctx: &CurrentOperationConte
 
 
 
-
-
-
-
-
-        let d = vec![ChainedTag::Property(new_ower_id), ChainedTag::OwnerIdMap(cur_map)];
+        let d = vec![ChainedTag::Ident(ChainedTagIdent::Property(new_ower_id)), ChainedTag::OwnerIdMap(cur_map)];
         let chained_tags = [chained_tags.clone(), d].concat();
 
 
@@ -597,31 +598,16 @@ fn bool_to_bytes(value: bool) -> AlignedData {
 fn convert_statement(stmt: &Statement, current_ctx: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, owner_id: OwnerUnitId) -> Vec<OperationUnit> {
     match stmt {
         Statement::Object(obj) => {
-
-            convert_obj(&obj, current_ctx, chained_tags, owner_id)
+            convert_obj_as_stmt(obj, current_ctx, chained_tags, owner_id)
         }
         Statement::ObjectValue(obj_val) => {
             convert_object_data_value(&obj_val, current_ctx, chained_tags, owner_id)
         }
         Statement::Conditional(cond) => {
-            let chained_tags = [chained_tags.clone(), vec![ChainedTag::IfScope]].concat();
-            let cond_operations = convert_cond(&cond.cond, chained_tags.clone(), current_ctx, owner_id);
-            let true_scope_operations = convert_scope(&cond.true_scope, current_ctx, chained_tags.clone(), owner_id);
-            let false_scope = match &cond.false_scope {
-                None => vec![],
-                Some(false_scope) => {
-                    let chained_tags = [chained_tags.clone(), vec![ChainedTag::ElseScope]].concat();
-                    let true_scope_operations = convert_scope(&*false_scope, current_ctx, chained_tags.clone(), owner_id);
-                    true_scope_operations
-                }
-            };
-            [cond_operations, true_scope_operations, false_scope].concat()
+            convert_conditional(cond, current_ctx, chained_tags, owner_id)
         }
         Statement::Loop(loop_scope) => {
-            let chained_tags = [chained_tags.clone(), vec![ChainedTag::LoopScope]].concat();
-            let loop_cond = convert_cond(&loop_scope.cond, chained_tags.clone(), current_ctx, owner_id);
-            let loop_scope_operations = convert_scope(&loop_scope.loop_scope, current_ctx, chained_tags.clone(), owner_id);
-            [loop_cond, loop_scope_operations].concat()
+            convert_loop(loop_scope, current_ctx, chained_tags, owner_id)
         }
         Statement::Scope(scope) => {
             convert_scope(scope, current_ctx, chained_tags, owner_id)
@@ -629,7 +615,33 @@ fn convert_statement(stmt: &Statement, current_ctx: &CurrentOperationContext, ch
     }
 }
 
+fn convert_obj_as_stmt(obj: &ObjectData, current_ctx: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, owner_id: OwnerUnitId) -> Vec<OperationUnit> {
+    let obj_id = owner_id + 1 as OwnerUnitId;
+    let chained_tags = [chained_tags.clone(), vec![ChainedTag::Ident(ChainedTagIdent::Object(obj_id))]].concat();
+    convert_obj(&obj, current_ctx, chained_tags, owner_id)
+}
 
+fn convert_conditional(cond: &ConditionStatement, current_ctx: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, owner_id: OwnerUnitId) -> Vec<OperationUnit> {
+    let chained_tags = [chained_tags.clone(), vec![ChainedTag::IfScope]].concat();
+    let cond_operations = convert_cond(&cond.cond, chained_tags.clone(), current_ctx, owner_id);
+    let true_scope_operations = convert_scope(&cond.true_scope, current_ctx, chained_tags.clone(), owner_id);
+    let false_scope = match &cond.false_scope {
+        None => vec![],
+        Some(false_scope) => {
+            let chained_tags = [chained_tags.clone(), vec![ChainedTag::ElseScope]].concat();
+            let true_scope_operations = convert_scope(&*false_scope, current_ctx, chained_tags.clone(), owner_id);
+            true_scope_operations
+        }
+    };
+    [cond_operations, true_scope_operations, false_scope].concat()
+}
+
+fn convert_loop(loop_scope: &LoopStatement, current_ctx: &CurrentOperationContext, chained_tags: Vec<ChainedTag>, owner_id: OwnerUnitId) -> Vec<OperationUnit> {
+    let chained_tags = [chained_tags.clone(), vec![ChainedTag::LoopScope]].concat();
+    let loop_cond = convert_cond(&loop_scope.cond, chained_tags.clone(), current_ctx, owner_id);
+    let loop_scope_operations = convert_scope(&loop_scope.loop_scope, current_ctx, chained_tags.clone(), owner_id);
+    [loop_cond, loop_scope_operations].concat()
+}
 
 
 fn convert_cond(cond: &ObjectDataValue, chained_tags: Vec<ChainedTag>, current_ctx: &CurrentOperationContext, owner_unit_id: OwnerUnitId) -> Vec<OperationUnit> {

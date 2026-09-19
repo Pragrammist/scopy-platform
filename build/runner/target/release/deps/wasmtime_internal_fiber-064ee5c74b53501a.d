@@ -1,0 +1,10 @@
+/home/vi/RustroverProjects/scopy-platform/build/runner/target/release/deps/wasmtime_internal_fiber-064ee5c74b53501a.d: /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/lib.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/unix.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/stackswitch.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/stackswitch/x86_64.rs
+
+/home/vi/RustroverProjects/scopy-platform/build/runner/target/release/deps/libwasmtime_internal_fiber-064ee5c74b53501a.rlib: /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/lib.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/unix.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/stackswitch.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/stackswitch/x86_64.rs
+
+/home/vi/RustroverProjects/scopy-platform/build/runner/target/release/deps/libwasmtime_internal_fiber-064ee5c74b53501a.rmeta: /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/lib.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/unix.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/stackswitch.rs /home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/stackswitch/x86_64.rs
+
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/lib.rs:
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/unix.rs:
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/stackswitch.rs:
+/home/vi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasmtime-internal-fiber-48.0.2/src/stackswitch/x86_64.rs:

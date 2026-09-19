@@ -1,0 +1,1 @@
+/home/vi/RustroverProjects/scopy-platform/build/runner/target/release/wasm-runner: /home/vi/RustroverProjects/scopy-platform/build/runner/module.wasm /home/vi/RustroverProjects/scopy-platform/build/runner/src/main.rs

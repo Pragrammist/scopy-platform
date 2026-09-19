@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use crate::low_ir::convert_to_lowering_ir;
+use crate::low_ir::{convert_to_lowering_ir, OperationUnit};
 use crate::scopy_ir::parse_modules;
 use crate::semantic::{ObjectIdent, ScopyModule};
 use wasm_encoder::{CodeSection, ConstExpr, DataSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection, Instruction, MemorySection, MemoryType, Module, TypeSection, ValType};
@@ -16,14 +16,7 @@ mod unit_tests;
 mod low_ir;
 mod semantic;
 mod scopy_ir;
-
-
-
-
-
-
-
-
+mod byte_maker;
 // fn main() {
 //     // let project = parse_modules();
 //     // println!("semantic: {:#?}", project);
@@ -63,64 +56,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn create_executable(wasm_bytes: &[u8], output_exe: &str) -> Result<(), Box<dyn Error>> {
-    let work_dir = "target/runner";
-    fs::create_dir_all(format!("{work_dir}/src"))?;
+    let template_dir = "runner";
+    let work_dir = "build/runner";
 
-    // 1. кладём .wasm рядом с будущим раннером
+    // 1. чистим и копируем шаблон
+    let _ = fs::remove_dir_all(work_dir);
+    copy_dir(template_dir, work_dir)?;
+
+    // 2. подкладываем .wasm
     fs::write(format!("{work_dir}/module.wasm"), wasm_bytes)?;
 
-    // 2. генерируем Cargo.toml раннера
-    let cargo_toml = r#"
-[package]
-name = "wasm-runner"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-wasmtime = { version = "=48.0.2", features = ["cranelift"] }
-wasmtime-wasi = "=48.0.2"
-
-[[bin]]
-name = "wasm-runner"
-path = "src/main.rs"
-"#;
-    fs::write(format!("{work_dir}/Cargo.toml"), cargo_toml)?;
-
-    // 3. генерируем код раннера
-    let main_rs = r#"
-use wasmtime::{Config, Engine, Linker, Module, Store};
-use wasmtime_wasi::p1::{self, WasiP1Ctx};
-use wasmtime_wasi::WasiCtxBuilder;
-use std::error::Error;
-
-fn main() -> Result<(), Box<dyn Error>> {
-    let mut config = Config::new();
-    config.wasm_multi_value(true);
-    let engine = Engine::new(&config)?;
-
-    // путь относительно src/main.rs -> корень крейта
-    let wasm_bytes = include_bytes!("../module.wasm");
-    let module = Module::new(&engine, wasm_bytes)?;
-
-    let wasi: WasiP1Ctx = WasiCtxBuilder::new()
-        .inherit_stdout()
-        .inherit_stderr()
-        .build_p1();
-
-    let mut store = Store::new(&engine, wasi);
-    let mut linker: Linker<WasiP1Ctx> = Linker::new(&engine);
-    p1::add_to_linker_sync(&mut linker, |cx| cx)?;
-
-    let instance = linker.instantiate(&mut store, &module)?;
-    let main_fn = instance.get_typed_func::<(), ()>(&mut store, "main")?;
-    main_fn.call(&mut store, ())?;
-
-    Ok(())
-}
-"#;
-    fs::write(format!("{work_dir}/src/main.rs"), main_rs)?;
-
-    // 4. собираем раннер
+    // 3. собираем
     let status = Command::new("cargo")
         .args(["build", "--release"])
         .current_dir(work_dir)
@@ -129,7 +75,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err("cargo build failed".into());
     }
 
-    // 5. копируем бинарник туда, куда попросили
+    // 4. копируем бинарник
     let built = if cfg!(windows) {
         format!("{work_dir}/target/release/wasm-runner.exe")
     } else {
@@ -142,6 +88,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     fs::copy(&built, &out)?;
 
+    Ok(())
+}
+
+fn copy_dir(from: &str, to: &str) -> std::io::Result<()> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+
+        // не тащим сборочный мусор
+        if name_str == "target" || name_str == ".git" {
+            continue;
+        }
+
+        let src = entry.path();
+        let dst = Path::new(to).join(&name);
+
+        if src.is_dir() {
+            copy_dir(src.to_str().unwrap(), dst.to_str().unwrap())?;
+        } else {
+            fs::copy(&src, &dst)?;
+        }
+    }
     Ok(())
 }
 
@@ -231,6 +201,7 @@ fn generate_wasm_bytes() -> Vec<u8> {
 
     module.finish()
 }
+
 
 
 

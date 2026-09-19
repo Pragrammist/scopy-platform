@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
+      <package file="$PROJECT_DIR$">
+        <feature name="default" enabled="true" />
+      </package>
+    </cargoProject>
+    <cargoProject FILE="$PROJECT_DIR$/runner/Cargo.toml">
+      <package file="$PROJECT_DIR$/runner">
+        <feature name="default" enabled="true" />
+      </package>
+    </cargoProject>
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="4386c28e-17c1-4885-b523-41eee5291a4d" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/runner/module.wasm" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/byte_maker.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/scopy-platform.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/runner/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/runner/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/runner/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/runner/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/low_ir.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/low_ir.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/scopy_ir.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/scopy_ir.rs" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:dev" />
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Rust File" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Pragrammist&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Pragrammist/scopy-platform.git&quot;,
+    &quot;accountId&quot;: &quot;07b88329-bc9c-4fea-aff0-33b6154d64e7&quot;
+  }
+}</component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="OuPLdmCg" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="ProjectErrors" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3DGVxBVIadVcKTiVAgkzaP8JtB6" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run scopy.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.Test unit_tests::parse_expr_tests::parse_member_expr_func_call.executor&quot;: &quot;Debug&quot;,
+    &quot;Cargo.Test unit_tests::parse_expr_tests::parse_member_expr_nested_calls.executor&quot;: &quot;Debug&quot;,
+    &quot;Cargo.Test unit_tests::parse_expr_tests::parse_object_lit_spread_obj_test.executor&quot;: &quot;Debug&quot;,
+    &quot;Cargo.Test unit_tests::parse_expr_tests::parse_object_lit_spread_test.executor&quot;: &quot;Debug&quot;,
+    &quot;Cargo.Test unit_tests::parse_expr_tests::test_call_function_directly_panic.executor&quot;: &quot;Run&quot;,
+    &quot;JavaScript Debug.default.js_ir.html.executor&quot;: &quot;Run&quot;,
+    &quot;JavaScript Debug.ir.html.executor&quot;: &quot;Run&quot;,
+    &quot;JavaScript Debug.main.js_ir.html.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;actions.on.save&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RunManager" selected="Cargo.Run scopy">
+    <configuration name="Run scopy" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="buildProfileId" value="dev" />
+      <option name="command" value="run --package scopy --bin scopy" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test unit_tests::parse_expr_tests::parse_member_expr_nested_calls" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package scopy --bin scopy -- unit_tests::parse_expr_tests::parse_member_expr_nested_calls --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test unit_tests::parse_expr_tests::test_call_function_directly_panic" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="buildProfileId" value="test" />
+      <option name="command" value="test --package scopy --bin scopy -- unit_tests::parse_expr_tests::test_call_function_directly_panic --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="ir.html" type="JavascriptDebugType" temporary="true" nameIsGenerated="true" uri="http://localhost:63342/scopy-platform/ir_output/ir.html" useBuiltInWebServerPort="true">
+      <method v="2" />
+    </configuration>
+    <configuration name="main.js_ir.html" type="JavascriptDebugType" temporary="true" nameIsGenerated="true" uri="http://localhost:63342/scopy-platform/ir_output/main.js_ir.html" useBuiltInWebServerPort="true">
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Cargo.Run scopy" />
+        <item itemvalue="Cargo.Test unit_tests::parse_expr_tests::test_call_function_directly_panic" />
+        <item itemvalue="JavaScript Debug.main.js_ir.html" />
+        <item itemvalue="JavaScript Debug.ir.html" />
+        <item itemvalue="Cargo.Test unit_tests::parse_expr_tests::parse_member_expr_nested_calls" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="4386c28e-17c1-4885-b523-41eee5291a4d" name="Changes" comment="" />
+      <created>1777908638312</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1777908638312</updated>
+      <workItem from="1777908639891" duration="1267000" />
+      <workItem from="1777953686793" duration="161000" />
+      <workItem from="1777953878360" duration="181000" />
+      <workItem from="1777954074804" duration="2298000" />
+      <workItem from="1778309062729" duration="8939000" />
+      <workItem from="1778434267216" duration="2392000" />
+      <workItem from="1778478391804" duration="12326000" />
+      <workItem from="1778510446432" duration="3285000" />
+      <workItem from="1778900608642" duration="125000" />
+      <workItem from="1786002215226" duration="1496000" />
+      <workItem from="1786120827967" duration="3980000" />
+      <workItem from="1786716275437" duration="2000" />
+      <workItem from="1786896611789" duration="7850000" />
+      <workItem from="1786906053713" duration="6056000" />
+      <workItem from="1786987861812" duration="6754000" />
+      <workItem from="1787078120680" duration="7444000" />
+      <workItem from="1787246100314" duration="7288000" />
+      <workItem from="1787265706240" duration="11073000" />
+      <workItem from="1787459089938" duration="1234000" />
+      <workItem from="1787498049447" duration="8556000" />
+      <workItem from="1787509967962" duration="6631000" />
+      <workItem from="1787591955025" duration="5245000" />
+      <workItem from="1787608107125" duration="1421000" />
+      <workItem from="1787675588421" duration="13602000" />
+      <workItem from="1787689245584" duration="5888000" />
+      <workItem from="1787725057899" duration="1182000" />
+      <workItem from="1787767713576" duration="7000" />
+      <workItem from="1787768062117" duration="4871000" />
+      <workItem from="1787835105188" duration="19099000" />
+      <workItem from="1787927757938" duration="16474000" />
+      <workItem from="1788022818546" duration="15211000" />
+      <workItem from="1788104237465" duration="16380000" />
+      <workItem from="1788196482935" duration="872000" />
+      <workItem from="1788197365323" duration="14754000" />
+      <workItem from="1788277068405" duration="12766000" />
+      <workItem from="1788292128081" duration="3975000" />
+      <workItem from="1788296311925" duration="1448000" />
+      <workItem from="1788371293624" duration="19108000" />
+      <workItem from="1788457526679" duration="27574000" />
+      <workItem from="1788549802781" duration="4683000" />
+      <workItem from="1788554501609" duration="373000" />
+      <workItem from="1788625592143" duration="5437000" />
+      <workItem from="1788715937911" duration="11014000" />
+      <workItem from="1788845708700" duration="1691000" />
+      <workItem from="1788897553714" duration="8737000" />
+      <workItem from="1788897339380" duration="40000" />
+      <workItem from="1788971913741" duration="7949000" />
+      <workItem from="1788981143643" duration="5473000" />
+      <workItem from="1788987445429" duration="21000" />
+      <workItem from="1789020457393" duration="25077000" />
+      <workItem from="1789114357485" duration="16231000" />
+      <workItem from="1789232597255" duration="18232000" />
+      <workItem from="1789327349526" duration="661000" />
+      <workItem from="1789409368876" duration="12340000" />
+      <workItem from="1789487052373" duration="16240000" />
+      <workItem from="1789579723981" duration="8394000" />
+      <workItem from="1789589332729" duration="154000" />
+      <workItem from="1789589497589" duration="481000" />
+      <workItem from="1789589997069" duration="95000" />
+      <workItem from="1789590103536" duration="190000" />
+      <workItem from="1789590387289" duration="555000" />
+      <workItem from="1789591910057" duration="1434000" />
+      <workItem from="1789668005116" duration="20828000" />
+      <workItem from="1789836749509" duration="400000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
+          <line>259</line>
+          <option name="timeStamp" value="68" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
+          <line>525</line>
+          <option name="timeStamp" value="80" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
+          <line>418</line>
+          <option name="timeStamp" value="83" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
+          <line>430</line>
+          <option name="timeStamp" value="84" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
+          <line>436</line>
+          <option name="timeStamp" value="85" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+    <watches-manager>
+      <configuration name="CargoCommandRunConfiguration">
+        <watch expression="let ctx = CallContext{&#10;                path: [ctx.path.clone(), another_object_value.path.clone()].concat(),&#10;            };" />
+      </configuration>
+    </watches-manager>
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
+  </component>
+</project>

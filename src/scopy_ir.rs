@@ -51,7 +51,8 @@ pub fn test_module_meta() -> CodeModuleMetaData{
 
             const va1 = {
                 va21={
-                    va31=(result={va41={}}) => {},
+                    va31=(result={va41={}}) => {
+                    },
                 },
                 va22={
                     va31={}
