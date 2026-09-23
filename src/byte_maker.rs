@@ -1,6 +1,9 @@
+use std::collections::HashMap;
 use serde::Serialize;
+use serde_json::Value;
+use swc_ecma_ast::Ident;
 use wasm_encoder::{CodeSection, ConstExpr, CustomSection, DataSection, ElementSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, GlobalSection, ImportSection, Instruction, MemArg, MemorySection, MemoryType, Module, StartSection, TableSection, TypeSection, ValType};
-use crate::low_ir::{ChainedTag, ChainedTagIdent, OperationExpr, OperationUnit, OwnerUnitId};
+use crate::low_ir::{OperationUnit, ChainedTagIdent, LitOperationType, OperationExpr,  ObjectIdentFull};
 
 fn make_bytes(operations: Vec<OperationUnit>) -> Vec<u8> {
     operations.into_iter().map(|op| {
@@ -10,13 +13,21 @@ fn make_bytes(operations: Vec<OperationUnit>) -> Vec<u8> {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 enum ByteMakingException {
-    NoFunction
+    NoFunction,
+    CannotUnwrapVecU8AsI64,
+    ObjectIdentNotFound
 }
+
+const BIT_32_SIZE: i32 = 4;
+
+const BIT_64_SIZE: i32 = 8;
 
 impl std::fmt::Display for ByteMakingException {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self{
             ByteMakingException::NoFunction => write!(f, "No function at WASM module."),
+            ByteMakingException::CannotUnwrapVecU8AsI64 => write!(f, "Can't unwrap on bool literal."),
+            ByteMakingException::ObjectIdentNotFound => write!(f, "Object ident not found."),
         }
     }
 }
@@ -30,56 +41,145 @@ macro_rules! compiler_panic {
 }
 
 
-fn add_first_byte_init(func: &mut Function, id: OwnerUnitId){
-    func.instruction(&Instruction::I32Const(id as i32));
-    func.instruction(&Instruction::I64Const(0i64));
-    func.instruction(&Instruction::I64Store(MemArg {
-        offset: 0,
-        align: 3,           // выравнивание 8 байт — log2(8)=3
-        memory_index: 0,
-    }));
-}
 
-fn make_chained_tag(tag: ChainedTag, ctx: ByteMakerCurrentContext){
+
+fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
     match tag {
-        ChainedTag::CallChainStart => {}
-        ChainedTag::CallChainEnd => {}
-        ChainedTag::Ident(id) => {
-            let functions = &mut ctx.sections.code.functions.clone();
-            let func = &mut functions.pop().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction)).clone();
-
-
-            match id {
-                ChainedTagIdent::Object(id) => {
-                    func.instruction(&Instruction::I32Const(id as i32));
-                }
-                ChainedTagIdent::Function(id) => {}
-                ChainedTagIdent::ModuleId(id) => {}
-                ChainedTagIdent::FuncResult(id) => {}
-                ChainedTagIdent::Property(id) => {
-                    func.instruction(&Instruction::I32Const(id as i32));
-                }
-                ChainedTagIdent::FuncArg(id) => {}
-                ChainedTagIdent::AnotherObject(id) => {
-
-                }
-                ChainedTagIdent::FunctionCall(id) => {}
-            }
-        }
-        ChainedTag::FuncInit => {}
-        ChainedTag::BinOperation(_) => {}
-        ChainedTag::LitOperation(lit_operation) => {
+        OperationUnit::CallChainStart => {}
+        OperationUnit::CallChainEnd => {}
+        OperationUnit::Function(id) => {}
+        OperationUnit::ModuleId(id) => {
 
         }
-        ChainedTag::IfScope => {}
-        ChainedTag::LoopScope => {}
-        ChainedTag::ElseScope => {}
-        ChainedTag::StartScope => {}
-        ChainedTag::EndScope => {}
-        ChainedTag::StartCond => {}
-        ChainedTag::EndCond => {}
-        ChainedTag::EmptyScope => {}
-        ChainedTag::OwnerIdMap(map) => {}
+        OperationUnit::FuncResult(id) => {}
+        OperationUnit::FuncArg(id) => {}
+        OperationUnit::AnotherObjectVal(another_obj) => {
+            let ident_to_write = another_obj.data;
+            let ident_where_write = another_obj.ident;
+            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            ctx.ident_map.insert(ident_where_write.clone(),  ctx.cur_mem_index);
+            let ident_index = *ctx.ident_map.iter().find_map(|(iter_id, iter_val)| {
+                if ident_to_write == *iter_id{
+                    Some(iter_val)
+                }
+                else { None }
+            }).unwrap_or_else(|| compiler_panic!(ByteMakingException::ObjectIdentNotFound)) as i64;
+            func.instruction(&Instruction::I32Const(ctx.cur_mem_index));
+            func.instruction(&Instruction::I64Const(ident_index));
+            func.instruction(&Instruction::I64Store(MemArg {
+                offset: 0,
+                align: 3,        // log2(8) = 3, выровнено на 8 байт
+                memory_index: 0,
+            }));
+            ctx.cur_mem_index += BIT_64_SIZE;
+        }
+        OperationUnit::FunctionCall(id) => {}
+        OperationUnit::FuncParam => {}
+        OperationUnit::FuncInit => {}
+        OperationUnit::Str(val) => {
+            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+
+            ctx.ident_map.insert(val.ident,  ctx.cur_mem_index);
+
+
+            val.data
+                .into_iter()
+                .map(|x| x as i32)
+                .for_each(|i32_val| {
+                    func.instruction(&Instruction::I32Const(ctx.cur_mem_index));
+                    func.instruction(&Instruction::I32Const(i32_val));
+                    func.instruction(&Instruction::I64Store(MemArg {
+                        offset: 0,
+                        align: 0,        // log2(8) = 3, выровнено на 8 байт
+                        memory_index: 0,
+                    }));
+                    ctx.cur_mem_index += BIT_32_SIZE;
+                });
+
+        }
+        OperationUnit::Bool(val) => {
+            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            ctx.ident_map.insert(val.ident,  ctx.cur_mem_index);
+            func.instruction(&Instruction::I32Const(ctx.cur_mem_index));
+            func.instruction(&Instruction::I64Const(i64::from_le_bytes(val.data.try_into().unwrap_or_else(|_| compiler_panic!(ByteMakingException::CannotUnwrapVecU8AsI64)))));
+            func.instruction(&Instruction::I64Store(MemArg {
+                offset: 0,
+                align: 3,        // log2(8) = 3, выровнено на 8 байт
+                memory_index: 0,
+            }));
+            ctx.cur_mem_index += BIT_64_SIZE;
+        }
+        OperationUnit::Null(val) => {
+            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            ctx.ident_map.insert(val.ident,  ctx.cur_mem_index);
+            func.instruction(&Instruction::I32Const(ctx.cur_mem_index));
+            func.instruction(&Instruction::I64Const(i64::from_le_bytes(val.data.try_into().unwrap_or_else(|_| compiler_panic!(ByteMakingException::CannotUnwrapVecU8AsI64)))));
+            func.instruction(&Instruction::I64Store(MemArg {
+                offset: 0,
+                align: 3,        // log2(8) = 3, выровнено на 8 байт
+                memory_index: 0,
+            }));
+            ctx.cur_mem_index += BIT_64_SIZE;
+        }
+        OperationUnit::Num(val) => {
+            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            ctx.ident_map.insert(val.ident,  ctx.cur_mem_index);
+            func.instruction(&Instruction::I32Const(ctx.cur_mem_index));
+            func.instruction(&Instruction::I64Const(i64::from_le_bytes(val.data.try_into().unwrap_or_else(|_| compiler_panic!(ByteMakingException::CannotUnwrapVecU8AsI64)))));
+            func.instruction(&Instruction::I64Store(MemArg {
+                offset: 0,
+                align: 3,        // log2(8) = 3, выровнено на 8 байт
+                memory_index: 0,
+            }));
+            ctx.cur_mem_index += BIT_64_SIZE;
+        },
+        OperationUnit::IfScope => {}
+        OperationUnit::LoopScope => {}
+        OperationUnit::ElseScope => {}
+        OperationUnit::StartScope => {}
+        OperationUnit::EndScope => {}
+        OperationUnit::StartCond => {}
+        OperationUnit::EndCond => {}
+        OperationUnit::EmptyScope => {}
+        OperationUnit::EndModule => {
+
+        }
+        OperationUnit::EqEq => {}
+        OperationUnit::NotEq => {}
+        OperationUnit::Lt => {}
+        OperationUnit::LtEq => {}
+        OperationUnit::Gt => {}
+        OperationUnit::GtEq => {}
+        OperationUnit::Add => {}
+        OperationUnit::Sub => {}
+        OperationUnit::Mul => {}
+        OperationUnit::Div => {}
+        OperationUnit::Mod => {}
+        OperationUnit::LogicalOr => {}
+        OperationUnit::LogicalAnd => {}
+        OperationUnit::NullishCoalescing => {}
+        OperationUnit::StartProgram => {
+            ctx.sections.memories.memory.push(
+                MemoryType {
+                    minimum: 1,
+                    maximum: None,
+                    memory64: false,
+                    shared: false,
+                    page_size_log2: None,
+                }
+            );
+            ctx.sections.types.functions.push((vec![], vec![]));
+            ctx.sections.functions.functions.push(ctx.cur_func_index);
+            ctx.sections.code.functions.push(Function::new([]));
+
+        }
+        OperationUnit::EndProgram => {
+            let func =  ctx.sections.code.functions.first_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            func.instruction(&Instruction::End);
+        }
+        OperationUnit::AnotherObject(_) => {
+
+        }
     }
 }
 
@@ -200,54 +300,177 @@ fn build_data() -> DataSection {
 // type → import → function → memory → export → code → data
 
 
-
+#[derive(Clone, Debug, Default)]
 struct WasmSections {
-    pub types: TypeSection,
-    pub imports: ImportSection,
-    pub functions: FunctionSection,
-    pub tables: TableSection,
-    pub memories: MemorySection,
-    pub globals: GlobalSection,
-    pub exports: ExportSection,
-    pub start: Option<StartSection>,
-    pub elements: ElementSection,
+    pub types: ByteMakerTypeSection,
+    pub imports: ByteMakerImportSection,
+    pub functions: ByteMakerFunctionSection,
+    pub tables: ByteMakerTableSection,
+    pub memories: ByteMakerMemorySection,
+    pub globals: ByteMakerGlobalSection,
+    pub exports: ByteMakerExportSection,
+    pub start: Option<ByteMakerStartSection>,
+    pub elements: ByteMakerElementSection,
     pub code: ByteMakerCodeSection,
-    pub data: DataSection,
+    pub data: ByteMakerDataSection,
 }
 
+
+
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerTypeSection {
+    pub functions: Vec<(Vec<ValType>, Vec<ValType>)>,
+}
+
+
+
+#[derive(Clone, Debug,  Default)]
+pub struct ByteMakerImportSection {
+
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerFunctionSection {
+     pub functions: Vec<u32>
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerTableSection {
+
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerMemorySection {
+    pub memory: Vec<MemoryType>
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerGlobalSection {
+
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerExportSection {
+
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerStartSection {
+
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerElementSection {
+
+}
+
+
+#[derive(Clone, Debug, Default)]
+pub struct ByteMakerDataSection {
+
+}
+
+#[derive(Clone, Debug, Default)]
 struct ByteMakerCodeSection{
     pub functions: Vec<Function>,
 }
 
+#[derive(Debug, Default, Clone)]
 struct ByteMakerCurrentContext{
     pub sections: WasmSections,
-    pub current_tags: Vec<ChainedTag>,
+    pub current_tags: Vec<OperationUnit>,
+    pub cur_mem_index: i32,
+    pub cur_func_index: u32,
+    pub ident_map: HashMap<ObjectIdentFull, i32>,
+    pub cur_func: usize,     // индекс в sections.code.functions
+    pub main_func: usize,    // тоже индекс
+
 }
 
 
 
-fn build_module(sections: WasmSections) -> Vec<u8> {
+
+pub fn build_module(opers: Vec<OperationUnit>) -> Vec<u8> {
+    let ctx = &mut ByteMakerCurrentContext::default();
+
+
+
+
+
+    opers.iter().for_each(|op| {
+        make_operation_unit(op.clone(), ctx)
+    });
+
+
     let mut module = Module::new();
 
-    module.section(&sections.types);
-    module.section(&sections.imports);
-    module.section(&sections.functions);
-    module.section(&sections.tables);
-    module.section(&sections.memories);
-    module.section(&sections.globals);
-    module.section(&sections.exports);
 
-    if let Some(start) = &sections.start {
-        module.section(start);
-    }
+    let type_section = &mut TypeSection::new();
 
-    module.section(&sections.elements);
-    let code_section = &mut  CodeSection::new();
-    sections.code.functions.iter().for_each(|f| {
+    ctx.sections.types.functions.iter().for_each(|(params, results)| {
+        type_section.ty().function(params.clone(), results.clone());
+    });
+    // sections.types
+
+    module.section(type_section);
+
+
+    let import_section = &mut  ImportSection::new();
+    //sections.imports
+    module.section(import_section);
+
+
+    let function_section = &mut FunctionSection::new();
+    ctx.sections.functions.functions.iter().for_each(
+        |f| {
+            function_section.function(*f);
+        }
+    );
+
+    //sections.functions
+    module.section(function_section);
+
+    let table_section = &mut  TableSection::new();
+    //sections.tables
+    module.section(table_section);
+
+    let memory_section = &mut  MemorySection::new();
+    ctx.sections.memories.memory.iter().for_each(|m|{
+        memory_section.memory(m.clone());
+    });
+    //sections.memories
+    module.section(memory_section);
+
+
+    let global_section = &mut  GlobalSection::new();
+    //sections.globals
+    module.section(global_section);
+
+    let export_section = &mut ExportSection::new();
+
+    //sections.exports
+    module.section(export_section);
+
+    let start = &mut  StartSection { function_index: 0 };
+    module.section(start);
+
+
+    let elements_section = &mut  ElementSection::new();
+    //sections.elements
+    module.section(elements_section);
+
+
+    let code_section = &mut CodeSection::new();
+    ctx.sections.code.functions.iter().for_each(|f| {
         code_section.function(f);
     });
     module.section(code_section);
-    module.section(&sections.data);
+
+
+    let section_data =  &mut  DataSection::new();
+    //sections.data
+    module.section(section_data);
 
     module.finish()
 }

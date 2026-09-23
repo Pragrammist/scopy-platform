@@ -17,14 +17,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4386c28e-17c1-4885-b523-41eee5291a4d" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/runner/module.wasm" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/byte_maker.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/scopy-platform.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/runner/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/runner/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/build.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/runner/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/runner/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/byte_maker.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/byte_maker.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/low_ir.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/low_ir.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/scopy_ir.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/scopy_ir.rs" afterDir="false" />
@@ -246,7 +242,15 @@
       <workItem from="1789590387289" duration="555000" />
       <workItem from="1789591910057" duration="1434000" />
       <workItem from="1789668005116" duration="20828000" />
-      <workItem from="1789836749509" duration="400000" />
+      <workItem from="1789836749509" duration="1258000" />
+      <workItem from="1789928989707" duration="206000" />
+      <workItem from="1789929204545" duration="9823000" />
+      <workItem from="1789970295831" duration="1366000" />
+      <workItem from="1790010234473" duration="8258000" />
+      <workItem from="1790018949313" duration="4478000" />
+      <workItem from="1790049490957" duration="7220000" />
+      <workItem from="1790099578818" duration="9316000" />
+      <workItem from="1790184603975" duration="4315000" />
     </task>
     <servers />
   </component>
@@ -265,35 +269,6 @@
     </option>
   </component>
   <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
-          <line>259</line>
-          <option name="timeStamp" value="68" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
-          <line>525</line>
-          <option name="timeStamp" value="80" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
-          <line>418</line>
-          <option name="timeStamp" value="83" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
-          <line>430</line>
-          <option name="timeStamp" value="84" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/low_ir.rs</url>
-          <line>436</line>
-          <option name="timeStamp" value="85" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
     <watches-manager>
       <configuration name="CargoCommandRunConfiguration">
         <watch expression="let ctx = CallContext{&#10;                path: [ctx.path.clone(), another_object_value.path.clone()].concat(),&#10;            };" />

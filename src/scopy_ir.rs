@@ -49,13 +49,25 @@ pub fn test_module_meta() -> CodeModuleMetaData{
         code:  r#"
             // import {string, bool, number, generic} from "default.js";
 
+            const va0 = {
+                va1 = {
+                    va2 = "test"
+                }
+            };
+
+
             const va1 = {
                 va21={
-                    va31=(result={va41={}}) => {
-                    },
+                    va31= null,
                 },
                 va22={
-                    va31={}
+                    va31={
+                        va41= null,
+                        va42="test",
+                        va43=false,
+                        va45=123,
+                        va46=va0.va1.va2
+                    }
                 }
             };
 

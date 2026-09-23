@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>IR</title>
+
+<script src="./react.development.js"></script>
+<script src="./react-dom.development.js"></script>
+<script src="./main.js"></script>
+
+<style>
+  body { margin:0; background:#0f1117; color:#e6edf3; font-family: monospace; }
+  #bar {
+    padding: 8px;
+    border-bottom: 1px solid #30363d;
+    display:flex; gap:10px; align-items:center;
+  }
+  button {
+    background:#21262d;
+    color:#e6edf3;
+    border:1px solid #30363d;
+    padding:4px 10px;
+    cursor:pointer;
+  }
+  button.active {
+    border-color:#58a6ff;
+    color:#58a6ff;
+  }
+  input {
+    background:#0f1117;
+    border:1px solid #30363d;
+    color:#e6edf3;
+    padding:4px 6px;
+  }
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <button id="rawBtn" class="active">RAW</button>
+  <button id="simpleBtn">SIMPLIFIED</button>
+
+  <button id="expandBtn">EXPAND</button>
+  <button id="collapseBtn">COLLAPSE</button>
+
+  <input id="search" placeholder="search...">
+</div>
+
+<div id="root"></div>
+<script>
+const DATA = {"name":"main.js","statements":[{"stmt":"Object","stmt-data":{"is_mutable":false,"name":"va1","attrs":[],"value":{"val":"Object","val_data":{"props":[{"is_mutable":false,"name":"va21","attrs":[],"value":{"val":"Object","val_data":{"props":[{"is_mutable":false,"name":"va31","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Null"}}}]}}},{"is_mutable":false,"name":"va22","attrs":[],"value":{"val":"Object","val_data":{"props":[{"is_mutable":false,"name":"va31","attrs":[],"value":{"val":"Object","val_data":{"props":[{"is_mutable":false,"name":"va41","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Null"}}},{"is_mutable":false,"name":"va42","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Str","lit-val-data":{"val":"test"}}}},{"is_mutable":false,"name":"va43","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Bool","lit-val-data":{"val":false}}}},{"is_mutable":false,"name":"va45","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Num","lit-val-data":{"val":123.0}}}}]}}}]}}}]}}}},{"stmt":"ObjectValue","stmt-data":{"val":"AnotherObject","val_data":{"obj":{"is_mutable":false,"name":"va31","attrs":[],"value":{"val":"Object","val_data":{"props":[{"is_mutable":false,"name":"va41","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Null"}}},{"is_mutable":false,"name":"va42","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Str","lit-val-data":{"val":"test"}}}},{"is_mutable":false,"name":"va43","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Bool","lit-val-data":{"val":false}}}},{"is_mutable":false,"name":"va45","attrs":[],"value":{"val":"Literal","val_data":{"lit-val":"Num","lit-val-data":{"val":123.0}}}}]}}},"path":[{"Ident":"va1"},{"Ident":"va22"},{"Ident":"va31"}]}}}]};
+
+const PAIRS = [
+  ["stmt", "stmt-data"],
+  ["val", "val_data"],
+  ["obj-kind", "data"],
+  ["lit-val", "lit-val-data"],
+  ["bin-op-type", "bin-op-type-data"]
+];
+
+function isPlainObject(v) {
+  return v && typeof v === "object" && !Array.isArray(v);
+}
+
+function simplify(node) {
+  if (Array.isArray(node)) return node.map(simplify);
+  if (!isPlainObject(node)) return node;
+
+  for (const [tag, dataKey] of PAIRS) {
+    if (tag in node && dataKey in node) {
+      const inner = simplify(node[dataKey]);
+
+      if (isPlainObject(inner)) {
+        return { type: node[tag], ...inner };
+      }
+
+      return { type: node[tag], value: inner };
+    }
+  }
+
+  const out = {};
+
+  for (const [k, v] of Object.entries(node)) {
+    if (k === "hash_type") continue;
+
+    const sv = simplify(v);
+
+    if (isPlainObject(sv) && typeof sv.type === "string") {
+      out[`${k}_type`] = sv.type;
+
+      for (const [ik, iv] of Object.entries(sv)) {
+        if (ik === "type") continue;
+        if (ik in out) out[`${k}_${ik}`] = iv;
+        else out[ik] = iv;
+      }
+    } else {
+      out[k] = sv;
+    }
+  }
+
+  return out;
+}
+
+const SIMPLIFIED = simplify(DATA);
+
+let current = "raw";
+let collapsed = 2;
+
+function render() {
+  const src = current === "raw" ? DATA : SIMPLIFIED;
+
+  ReactDOM.render(
+    React.createElement(window.reactJsonView.default, {
+      src,
+      theme: "monokai",
+      collapsed,
+      displayDataTypes: false,
+      enableClipboard: true,
+      name: false
+    }),
+    document.getElementById("root")
+  );
+}
+
+const rawBtn = document.getElementById("rawBtn");
+const simpleBtn = document.getElementById("simpleBtn");
+const expandBtn = document.getElementById("expandBtn");
+const collapseBtn = document.getElementById("collapseBtn");
+
+rawBtn.onclick = () => {
+  current = "raw";
+  rawBtn.classList.add("active");
+  simpleBtn.classList.remove("active");
+  render();
+};
+
+simpleBtn.onclick = () => {
+  current = "simplified";
+  simpleBtn.classList.add("active");
+  rawBtn.classList.remove("active");
+  render();
+};
+
+expandBtn.onclick = () => {
+  collapsed = false;
+  render();
+};
+
+collapseBtn.onclick = () => {
+  collapsed = 2;
+  render();
+};
+
+render();
+</script>
+
+</body>
+</html>

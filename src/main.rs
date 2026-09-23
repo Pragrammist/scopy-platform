@@ -9,111 +9,140 @@ use std::process::Command;
 use wasmtime::{Config, Engine, Instance, Linker, Module as WasmTimeModule, Result, Store};
 use wasmtime_wasi::WasiCtxBuilder;
 use std::error::Error;
+use std::io::Write;
 use wasmtime_wasi::p1::{self, WasiP1Ctx};
-
+use crate::byte_maker::build_module;
 
 mod unit_tests;
 mod low_ir;
 mod semantic;
 mod scopy_ir;
 mod byte_maker;
-// fn main() {
-//     // let project = parse_modules();
-//     // println!("semantic: {:#?}", project);
-//     // let d = convert_to_lowering_ir(&project);
-//     // // project.modules.into_iter().for_each(|module| {
-//     // //     dump_ir_html(&module, module.name.clone());
-//     // // })
-//     // println!("lowered semantic: {:?}", d);
-//
-//     //TODO:
-//     /*
-//         1) убрать синтаксис мутаций
-//         2) убрать ...
-//         3) добавить поддержку ast дерево массивов как span
-//         4) почекать код импортов экспортов
-//         5) тесты на импорт экспорт
-//     */
-//
-//
-//     let wasm_bytes = generate_wasm_bytes();
-//     println!("wasm size: {} bytes", wasm_bytes.len());
-//
-//     create_executable(&wasm_bytes, "add_app").expect("");
-//     println!("executable created: add_app");
-//
-//
-// }
+pub mod wasm_unit_tests;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let wasm_bytes = generate_wasm_bytes();
-    println!("wasm: {} bytes", wasm_bytes.len());
+fn main() {
+    let project = parse_modules();
+    // println!("semantic: {:#?}", project);
+    let d = convert_to_lowering_ir(&project);
+    // project.modules.into_iter().for_each(|module| {
+    //     dump_ir_html(&module, module.name.clone());
+    // });
+    println!("lowered semantic: {:?}", d);
+    //TODO:
+    /*
+        1) убрать синтаксис мутаций и сделать как апи в анализаторах и не более того
+        2) убрать ...
+        3) добавить поддержку ast дерево массивов как span
+        4) почекать код импортов экспортов
+        5) тесты на импорт экспорт
+    */
+    let wasm_bytes = build_module(d);
+    
 
-    create_executable(&wasm_bytes, "hello_app")?;
-    println!("done: hello_app");
 
-    Ok(())
+
+    // let wasm_bytes = generate_wasm_bytes();
+    println!("wasm size: {} bytes", wasm_bytes.len());
+
+    create_executable(&wasm_bytes, "add_app").expect("");
+    println!("executable created: add_app");
+
+
 }
 
+// fn main() -> Result<(), Box<dyn Error>> {
+//     let wasm_bytes = generate_wasm_bytes();
+//     println!("wasm: {} bytes", wasm_bytes.len());
+//
+//     create_executable(&wasm_bytes, "hello_app")?;
+//     println!("done: hello_app");
+//
+//     Ok(())
+// }
+//
+// fn create_executable(wasm_bytes: &[u8], output_exe: &str) -> Result<(), Box<dyn Error>> {
+//     let template_dir = "runner";
+//     let work_dir = "build/runner";
+//
+//     // 1. чистим и копируем шаблон
+//     let _ = fs::remove_dir_all(work_dir);
+//     copy_dir(template_dir, work_dir)?;
+//
+//     // 2. подкладываем .wasm
+//     fs::write(format!("{work_dir}/module.wasm"), wasm_bytes)?;
+//
+//     // 3. собираем
+//     let status = Command::new("cargo")
+//         .args(["build", "--release"])
+//         .current_dir(work_dir)
+//         .status()?;
+//     if !status.success() {
+//         return Err("cargo build failed".into());
+//     }
+//
+//     // 4. копируем бинарник
+//     let built = if cfg!(windows) {
+//         format!("{work_dir}/target/release/wasm-runner.exe")
+//     } else {
+//         format!("{work_dir}/target/release/wasm-runner")
+//     };
+//     let out = if cfg!(windows) {
+//         format!("{output_exe}.exe")
+//     } else {
+//         output_exe.to_string()
+//     };
+//     fs::copy(&built, &out)?;
+//
+//     Ok(())
+// }
+
+const RUNNER_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wasm-runner-bin"));
+
 fn create_executable(wasm_bytes: &[u8], output_exe: &str) -> Result<(), Box<dyn Error>> {
-    let template_dir = "runner";
-    let work_dir = "build/runner";
-
-    // 1. чистим и копируем шаблон
-    let _ = fs::remove_dir_all(work_dir);
-    copy_dir(template_dir, work_dir)?;
-
-    // 2. подкладываем .wasm
-    fs::write(format!("{work_dir}/module.wasm"), wasm_bytes)?;
-
-    // 3. собираем
-    let status = Command::new("cargo")
-        .args(["build", "--release"])
-        .current_dir(work_dir)
-        .status()?;
-    if !status.success() {
-        return Err("cargo build failed".into());
-    }
-
-    // 4. копируем бинарник
-    let built = if cfg!(windows) {
-        format!("{work_dir}/target/release/wasm-runner.exe")
-    } else {
-        format!("{work_dir}/target/release/wasm-runner")
-    };
     let out = if cfg!(windows) {
         format!("{output_exe}.exe")
     } else {
         output_exe.to_string()
     };
-    fs::copy(&built, &out)?;
+
+    let mut file = fs::File::create(&out)?;
+    file.write_all(RUNNER_BIN)?;                       // сам раннер
+    file.write_all(wasm_bytes)?;                       // wasm
+    file.write_all(&(wasm_bytes.len() as u64).to_le_bytes())?;  // длина wasm
 
     Ok(())
 }
 
-fn copy_dir(from: &str, to: &str) -> std::io::Result<()> {
-    fs::create_dir_all(to)?;
-    for entry in fs::read_dir(from)? {
-        let entry = entry?;
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-
-        // не тащим сборочный мусор
-        if name_str == "target" || name_str == ".git" {
-            continue;
-        }
-
-        let src = entry.path();
-        let dst = Path::new(to).join(&name);
-
-        if src.is_dir() {
-            copy_dir(src.to_str().unwrap(), dst.to_str().unwrap())?;
-        } else {
-            fs::copy(&src, &dst)?;
-        }
-    }
-    Ok(())
-}
+// fn append_wasm_to_exe(path: &str, wasm_bytes: &[u8]) -> Result<(), Box<dyn Error>> {
+//     let mut file = std::fs::OpenOptions::new().append(true).open(path)?;
+//     file.write_all(wasm_bytes)?;
+//     file.write_all(&(wasm_bytes.len() as u64).to_le_bytes())?;
+//     Ok(())
+// }
+//
+// fn copy_dir(from: &str, to: &str) -> std::io::Result<()> {
+//     fs::create_dir_all(to)?;
+//     for entry in fs::read_dir(from)? {
+//         let entry = entry?;
+//         let name = entry.file_name();
+//         let name_str = name.to_string_lossy();
+//
+//         // не тащим сборочный мусор
+//         if name_str == "target" || name_str == ".git" {
+//             continue;
+//         }
+//
+//         let src = entry.path();
+//         let dst = Path::new(to).join(&name);
+//
+//         if src.is_dir() {
+//             copy_dir(src.to_str().unwrap(), dst.to_str().unwrap())?;
+//         } else {
+//             fs::copy(&src, &dst)?;
+//         }
+//     }
+//     Ok(())
+// }
 
 
 
