@@ -88,7 +88,7 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
                 .for_each(|i32_val| {
                     func.instruction(&Instruction::I32Const(ctx.cur_mem_index));
                     func.instruction(&Instruction::I32Const(i32_val));
-                    func.instruction(&Instruction::I64Store(MemArg {
+                    func.instruction(&Instruction::I32Store(MemArg {
                         offset: 0,
                         align: 0,        // log2(8) = 3, выровнено на 8 байт
                         memory_index: 0,

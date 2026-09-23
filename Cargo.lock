@@ -1245,6 +1245,8 @@ dependencies = [
  "swc_ecma_parser",
  "walkdir",
  "wasm-encoder 0.258.0",
+ "wasmparser 0.259.0",
+ "wasmprinter 0.259.0",
  "wasmtime",
  "wasmtime-wasi",
 ]
@@ -1797,6 +1799,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.259.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f7c12eac7bb587801590f6a67ff0bc84d0748513864b71108e4b311cc3df694"
+dependencies = [
+ "bitflags",
+ "hashbrown 0.17.1",
+ "indexmap",
+ "semver",
+ "serde",
+]
+
+[[package]]
 name = "wasmprinter"
 version = "0.254.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1805,6 +1820,17 @@ dependencies = [
  "anyhow",
  "termcolor",
  "wasmparser 0.254.0",
+]
+
+[[package]]
+name = "wasmprinter"
+version = "0.259.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0510ce2ff0ad7c5510ad3dfcb2cedba4cf5d9f7e08d1d06e4d8cf8e5638aef95"
+dependencies = [
+ "anyhow",
+ "termcolor",
+ "wasmparser 0.259.0",
 ]
 
 [[package]]
@@ -1874,7 +1900,7 @@ dependencies = [
  "target-lexicon",
  "wasm-encoder 0.254.0",
  "wasmparser 0.254.0",
- "wasmprinter",
+ "wasmprinter 0.254.0",
  "wasmtime-internal-component-util",
  "wasmtime-internal-core",
 ]

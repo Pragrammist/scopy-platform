@@ -44,7 +44,7 @@ fn main() {
     // let wasm_bytes = generate_wasm_bytes();
     println!("wasm size: {} bytes", wasm_bytes.len());
 
-    create_executable(&wasm_bytes, "add_app").expect("");
+    create_executable(&wasm_bytes, "scopy_app").expect("");
     println!("executable created: add_app");
 
 
