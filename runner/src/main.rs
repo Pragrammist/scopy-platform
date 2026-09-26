@@ -6,7 +6,7 @@ use wasmtime_wasi::p1::{self, WasiP1Ctx};
 use wasmtime_wasi::WasiCtxBuilder;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let wasm_bytesc = read_embedded_wasm()?;
+    let wasm_bytes = read_embedded_wasm()?;
 
     let mut config = Config::new();
     config.wasm_multi_value(true);

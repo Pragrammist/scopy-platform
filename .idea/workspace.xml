@@ -16,7 +16,10 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4386c28e-17c1-4885-b523-41eee5291a4d" name="Changes" comment="" />
+    <list default="true" id="4386c28e-17c1-4885-b523-41eee5291a4d" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/runner/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/runner/src/main.rs" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -39,12 +42,12 @@
     &quot;assignee&quot;: &quot;Pragrammist&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/Pragrammist/scopy-platform.git&quot;,
-    &quot;accountId&quot;: &quot;07b88329-bc9c-4fea-aff0-33b6154d64e7&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "git@github.com:Pragrammist/scopy-platform.git",
+    "accountId": "07b88329-bc9c-4fea-aff0-33b6154d64e7"
   }
-}</component>
+}]]></component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="OuPLdmCg" />
   </component>
@@ -268,7 +271,8 @@
       <workItem from="1790184603975" duration="8368000" />
       <workItem from="1790193590216" duration="6619000" />
       <workItem from="1790255243491" duration="33947000" />
-      <workItem from="1790434517120" duration="847000" />
+      <workItem from="1790434517120" duration="971000" />
+      <workItem from="1790435503253" duration="39000" />
     </task>
     <servers />
   </component>
