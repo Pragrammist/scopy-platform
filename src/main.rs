@@ -1,103 +1,33 @@
 use std::fs;
 use std::path::PathBuf;
-use crate::low_ir::{convert_to_lowering_ir, OperationUnit};
-use crate::scopy_ir::parse_modules;
-use crate::semantic::{ObjectIdent, ScopyModule};
-use wasm_encoder::{CodeSection, ConstExpr, DataSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection, Instruction, MemorySection, MemoryType, Module, TypeSection, ValType};
-use std::path::Path;
-use std::process::Command;
-use wasmtime::{Config, Engine, Instance, Linker, Module as WasmTimeModule, Result, Store};
-use wasmtime_wasi::WasiCtxBuilder;
+use crate::low_ir::{convert_to_lowering_ir};
+use crate::scopy_ir::{parse_modules};
+use crate::semantic::{CodeModuleMetaData, CodeModuleSourceFileType, ObjectIdent, ScopyModule};
+use wasmtime::{ Result};
 use std::error::Error;
 use std::io::Write;
-use wasmtime_wasi::p1::{self, WasiP1Ctx};
-use crate::byte_maker::build_module;
+use walkdir::{DirEntry, WalkDir};
+use crate::byte_maker::{build_modules};
 
 mod unit_tests;
 mod low_ir;
 mod semantic;
 mod scopy_ir;
 mod byte_maker;
-pub mod wasm_unit_tests;
+mod wasm_unit_tests;
+mod include_build_in_modules;
 
 fn main() {
-    let project = parse_modules();
-    // println!("semantic: {:#?}", project);
+    let all_modules = collect_js_files();
+
+    let project = parse_modules(all_modules);
     let d = convert_to_lowering_ir(&project);
-    // project.modules.into_iter().for_each(|module| {
-    //     dump_ir_html(&module, module.name.clone());
-    // });
     println!("lowered semantic: {:?}", d);
-    //TODO:
-    /*
-        1) убрать синтаксис мутаций и сделать как апи в анализаторах и не более того
-        2) убрать ...
-        3) добавить поддержку ast дерево массивов как span
-        4) почекать код импортов экспортов
-        5) тесты на импорт экспорт
-    */
-    let wasm_bytes = build_module(d);
-    
-
-
-
-    // let wasm_bytes = generate_wasm_bytes();
-    println!("wasm size: {} bytes", wasm_bytes.len());
-
+    let wasm_bytes = build_modules(d);
     create_executable(&wasm_bytes, "scopy_app").expect("");
-    println!("executable created: add_app");
-
-
 }
 
-// fn main() -> Result<(), Box<dyn Error>> {
-//     let wasm_bytes = generate_wasm_bytes();
-//     println!("wasm: {} bytes", wasm_bytes.len());
-//
-//     create_executable(&wasm_bytes, "hello_app")?;
-//     println!("done: hello_app");
-//
-//     Ok(())
-// }
-//
-// fn create_executable(wasm_bytes: &[u8], output_exe: &str) -> Result<(), Box<dyn Error>> {
-//     let template_dir = "runner";
-//     let work_dir = "build/runner";
-//
-//     // 1. чистим и копируем шаблон
-//     let _ = fs::remove_dir_all(work_dir);
-//     copy_dir(template_dir, work_dir)?;
-//
-//     // 2. подкладываем .wasm
-//     fs::write(format!("{work_dir}/module.wasm"), wasm_bytes)?;
-//
-//     // 3. собираем
-//     let status = Command::new("cargo")
-//         .args(["build", "--release"])
-//         .current_dir(work_dir)
-//         .status()?;
-//     if !status.success() {
-//         return Err("cargo build failed".into());
-//     }
-//
-//     // 4. копируем бинарник
-//     let built = if cfg!(windows) {
-//         format!("{work_dir}/target/release/wasm-runner.exe")
-//     } else {
-//         format!("{work_dir}/target/release/wasm-runner")
-//     };
-//     let out = if cfg!(windows) {
-//         format!("{output_exe}.exe")
-//     } else {
-//         output_exe.to_string()
-//     };
-//     fs::copy(&built, &out)?;
-//
-//     Ok(())
-// }
-
 const RUNNER_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wasm-runner-bin"));
-
 fn create_executable(wasm_bytes: &[u8], output_exe: &str) -> Result<(), Box<dyn Error>> {
     let out = if cfg!(windows) {
         format!("{output_exe}.exe")
@@ -113,122 +43,98 @@ fn create_executable(wasm_bytes: &[u8], output_exe: &str) -> Result<(), Box<dyn 
     Ok(())
 }
 
-// fn append_wasm_to_exe(path: &str, wasm_bytes: &[u8]) -> Result<(), Box<dyn Error>> {
-//     let mut file = std::fs::OpenOptions::new().append(true).open(path)?;
-//     file.write_all(wasm_bytes)?;
-//     file.write_all(&(wasm_bytes.len() as u64).to_le_bytes())?;
-//     Ok(())
+
+
+//
+// fn generate_wasm_bytes() -> Vec<u8> {
+//     let mut module = Module::new();
+//
+//     // type 0: fd_write(i32, i32, i32, i32) -> i32
+//     // type 1: main() -> ()
+//     let mut types = TypeSection::new();
+//     types.ty().function(
+//         [ValType::I32, ValType::I32, ValType::I32, ValType::I32],
+//         [ValType::I32],
+//     );
+//     types.ty().function([], []);
+//     module.section(&types);
+//
+//     // import "wasi_snapshot_preview1" "fd_write" -> func 0
+//     let mut imports = ImportSection::new();
+//     imports.import(
+//         "wasi_snapshot_preview1",
+//         "fd_write",
+//         EntityType::Function(0),
+//     );
+//     module.section(&imports);
+//
+//     // func 1 = main, тип 1
+//     let mut functions = FunctionSection::new();
+//     functions.function(1);
+//     module.section(&functions);
+//
+//     // memory 1 page
+//     let mut memories = MemorySection::new();
+//     memories.memory(MemoryType {
+//         minimum: 1,
+//         maximum: None,
+//         memory64: false,
+//         shared: false,
+//         page_size_log2: None,
+//     });
+//     module.section(&memories);
+//
+//     // export "main" (func 1), "memory" (mem 0)
+//     let mut exports = ExportSection::new();
+//     exports.export("main", ExportKind::Func, 1);
+//     exports.export("memory", ExportKind::Memory, 0);
+//     module.section(&exports);
+//
+//
+//     let mut codes = CodeSection::new();
+//     let mut f = Function::new([]);
+//     f.instruction(&Instruction::I32Const(1));
+//     f.instruction(&Instruction::I32Const(32));
+//     f.instruction(&Instruction::I32Const(1));
+//     f.instruction(&Instruction::I32Const(40));
+//     f.instruction(&Instruction::Call(0));
+//     f.instruction(&Instruction::Drop);
+//     f.instruction(&Instruction::End);
+//     codes.function(&f);
+//     module.section(&codes);
+//
+//
+//     let mut data = DataSection::new();
+//
+//     let msg = b"Hello from wasm!\n";
+//     data.active(0, &ConstExpr::i32_const(0), msg.iter().copied());
+//
+//     let mut iovec = Vec::new();
+//     iovec.extend_from_slice(&0u32.to_le_bytes());
+//     iovec.extend_from_slice(&(msg.len() as u32).to_le_bytes());
+//     data.active(0, &ConstExpr::i32_const(32), iovec.iter().copied());
+//
+//     module.section(&data);
+//
+//     module.finish()
 // }
-//
-// fn copy_dir(from: &str, to: &str) -> std::io::Result<()> {
-//     fs::create_dir_all(to)?;
-//     for entry in fs::read_dir(from)? {
-//         let entry = entry?;
-//         let name = entry.file_name();
-//         let name_str = name.to_string_lossy();
-//
-//         // не тащим сборочный мусор
-//         if name_str == "target" || name_str == ".git" {
-//             continue;
-//         }
-//
-//         let src = entry.path();
-//         let dst = Path::new(to).join(&name);
-//
-//         if src.is_dir() {
-//             copy_dir(src.to_str().unwrap(), dst.to_str().unwrap())?;
-//         } else {
-//             fs::copy(&src, &dst)?;
-//         }
-//     }
-//     Ok(())
-// }
 
+fn is_ignored(entry: &DirEntry) -> bool {
+    let ignored_dirs = [
+        "target",
+        "node_modules",
+        ".git",
+        "ir_output",
+        "build_in_modules"
+    ];
 
+    entry.path()
+        .components()
+        .any(|c| {
+            let name = c.as_os_str().to_str();
 
-
-fn generate_wasm_bytes() -> Vec<u8> {
-    let mut module = Module::new();
-
-    // type 0: fd_write(i32, i32, i32, i32) -> i32
-    // type 1: main() -> ()
-    let mut types = TypeSection::new();
-    types.ty().function(
-        [ValType::I32, ValType::I32, ValType::I32, ValType::I32],
-        [ValType::I32],
-    );
-    types.ty().function([], []);
-    module.section(&types);
-
-    // import "wasi_snapshot_preview1" "fd_write" -> func 0
-    let mut imports = ImportSection::new();
-    imports.import(
-        "wasi_snapshot_preview1",
-        "fd_write",
-        EntityType::Function(0),
-    );
-    module.section(&imports);
-
-    // func 1 = main, тип 1
-    let mut functions = FunctionSection::new();
-    functions.function(1);
-    module.section(&functions);
-
-    // memory 1 page
-    let mut memories = MemorySection::new();
-    memories.memory(MemoryType {
-        minimum: 1,
-        maximum: None,
-        memory64: false,
-        shared: false,
-        page_size_log2: None,
-    });
-    module.section(&memories);
-
-    // export "main" (func 1), "memory" (mem 0)
-    let mut exports = ExportSection::new();
-    exports.export("main", ExportKind::Func, 1);
-    exports.export("memory", ExportKind::Memory, 0);
-    module.section(&exports);
-
-    // ─── CODE (до DATA!) ───
-    // body main:
-    //   i32.const 1    ; fd = 1 (stdout)
-    //   i32.const 32   ; iovs ptr
-    //   i32.const 1    ; iovs_len
-    //   i32.const 40   ; nwritten ptr
-    //   call 0         ; fd_write
-    //   drop
-    //   end
-    let mut codes = CodeSection::new();
-    let mut f = Function::new([]);
-    f.instruction(&Instruction::I32Const(1));
-    f.instruction(&Instruction::I32Const(32));
-    f.instruction(&Instruction::I32Const(1));
-    f.instruction(&Instruction::I32Const(40));
-    f.instruction(&Instruction::Call(0));
-    f.instruction(&Instruction::Drop);
-    f.instruction(&Instruction::End);
-    codes.function(&f);
-    module.section(&codes);
-
-    // ─── DATA (после CODE) ───
-    //   offset 0  — сама строка
-    //   offset 32 — iovec { buf: u32, len: u32 }
-    //   offset 40 — nwritten
-    let mut data = DataSection::new();
-
-    let msg = b"Hello from wasm!\n";
-    data.active(0, &ConstExpr::i32_const(0), msg.iter().copied());
-
-    let mut iovec = Vec::new();
-    iovec.extend_from_slice(&0u32.to_le_bytes());
-    iovec.extend_from_slice(&(msg.len() as u32).to_le_bytes());
-    data.active(0, &ConstExpr::i32_const(32), iovec.iter().copied());
-
-    module.section(&data);
-
-    module.finish()
+            ignored_dirs.contains(&name.unwrap_or(""))
+        })
 }
 
 
@@ -267,5 +173,85 @@ pub fn dump_ir_html(ir: &ScopyModule, name: ObjectIdent) {
     if write_res.is_err(){
         panic!("failed to write ir.html");
     }
+
+}
+
+
+
+pub fn collect_js_files() -> Vec<CodeModuleMetaData> {
+    let cur_dir = std::env::current_dir();
+
+    let res = match cur_dir {
+        Ok(cwd) => {
+            let res = WalkDir::new(&cwd)
+                .into_iter()
+                .filter_entry(|e| !is_ignored(e))
+                .filter_map(std::result::Result::ok)
+                .filter(|entry| entry.path().is_file())
+                .filter(|entry| {
+                    entry.path()
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        == Some("js")
+                })
+                .map(|entry| {
+
+                    let path_result = entry
+                        .path()
+                        .strip_prefix(&cwd.as_path());
+
+
+                    match path_result {
+                        Ok(entry) => entry.to_path_buf(),
+                        Err(err) => core::panic!("Error while trying parse path {}", err)
+                    }
+                })
+                .map(|f| {
+
+
+                    fn read_path_buf(f: &PathBuf) -> String {
+                        let read_result = fs::read_to_string(&f);
+                        let file_content = match read_result {
+                            Ok(result) => result,
+                            Err(err) => {
+                                core::panic!("Error while fetching {:}", err)
+                            }
+                        };
+                        file_content
+                    }
+
+                    fn get_file_name(f: &PathBuf) -> String {
+                        let read_file_name = f.file_name();
+                        match read_file_name {
+                            None => {
+                                core::panic!("Error while trying reading file name")
+                            }
+                            Some(file_name) => {
+                                match file_name.to_str() {
+                                    None => {
+                                        core::panic!("Error while trying reading file name and trying to str it")
+                                    }
+                                    Some(file_name) => {
+                                        file_name.replace(['/', '\\'], "_")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+
+                    CodeModuleMetaData{
+                        module_meta_type: CodeModuleSourceFileType::External,
+                        code: read_path_buf(&f),
+                        name: get_file_name(&f),
+                    }
+                })
+                .collect();
+            res
+        }
+        Err(err) => core::panic!("Could not get current directory. {:?}", err),
+    };
+
+    res
 
 }

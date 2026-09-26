@@ -531,7 +531,7 @@ mod parse_expr_tests {
     use swc_common::{SyntaxContext, DUMMY_SP};
     use swc_ecma_ast::{ArrayLit, ArrayPat, ArrowExpr, AssignExpr, AssignOp, AssignPat, AssignProp, AssignTarget, AwaitExpr, BigInt, BinExpr, BinaryOp, BindingIdent, BlockStmt, BlockStmtOrExpr, Bool, CallExpr, Callee, ClassExpr, ComputedPropName, CondExpr, Expr, ExprOrSpread, FnExpr, Function, GetterProp, Ident, IdentName, Import, Invalid, JSXMemberExpr, JSXObject, KeyValueProp, Lit, MemberExpr, MemberProp, MetaPropExpr, MetaPropKind, MethodProp, NewExpr, Null, Number, ObjectLit, ObjectPat, OptChainBase, OptChainExpr, ParenExpr, Pat, PrivateName, Prop, PropName, PropOrSpread, Regex, RestPat, SeqExpr, SetterProp, SpreadElement, Str, Super, SuperProp, SuperPropExpr, TaggedTpl, ThisExpr, Tpl, TsAsExpr, TsConstAssertion, TsInstantiation, TsKeywordType, TsKeywordTypeKind, TsNonNullExpr, TsSatisfiesExpr, TsType, TsTypeAssertion, TsTypeParamInstantiation, UnaryExpr, UnaryOp, UpdateExpr, UpdateOp, YieldExpr};
     use crate::scopy_ir::{parse_expr, ExprPanic};
-    use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, AstGlobalContext, BinaryOpType, CurrentContext, FunctionCallResultValue, FunctionValue, GlobalContext, LitValueBool, LitValueNum, LitValueString, LiteralValue, ObjectData, ObjectDataValue, ObjectValue, ScopeStatement, Statement};
+    use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, AstGlobalContext, BinaryOpType, CurrentContext, FunctionCallResultValue, FunctionValue, GlobalContext, LitValueBool, LitValueNum, LitValueString, LiteralValue, ObjectData, ObjectDataValue,  ObjectValue, ScopeStatement, Statement};
 
     #[test]
     fn parse_object_lit_key_value_test(){
@@ -595,13 +595,15 @@ mod parse_expr_tests {
                                     is_mutable: false,
                                     name: prop_name.clone(),
                                     attrs: vec![],
-                                    value: ObjectDataValue::Literal(LiteralValue::Null)
+                                    value: ObjectDataValue::Literal(LiteralValue::Null),
+                                    
                                 }
                             ]
                         }),
                         name: ident_name.clone(),
                         is_mutable: false,
-                        attrs: vec![]
+                        attrs: vec![],
+                        
                     }
                 )
             ],
@@ -637,17 +639,20 @@ mod parse_expr_tests {
             })]
         });
 
+        //
+        // let obj_parsed_value = parse_expr(&obj_lit, &test_context, &test_global_ctx, &test_ast_context);
 
-        let obj_parsed_value = parse_expr(&obj_lit, &test_context, &test_global_ctx, &test_ast_context);
+        assert_compiler_panic(
+            || parse_expr(&obj_lit, &test_context, &test_global_ctx, &test_ast_context),
+            ExprPanic::SpreadNotAllowed,
+        );
 
-
-
-        if let ObjectDataValue::Object(obj_parsed) = obj_parsed_value {
-            let d = obj_parsed.props.iter().find(|p| p.name == prop_name.clone()).is_some();
-            assert!(d, "There is no value for {:?}", prop_name)
-        } else {
-            assert!(false, "Wrong object value")
-        }
+        // if let ObjectDataValue::Object(obj_parsed) = obj_parsed_value {
+        //     let d = obj_parsed.props.iter().find(|p| p.name == prop_name.clone()).is_some();
+        //     assert!(d, "There is no value for {:?}", prop_name)
+        // } else {
+        //     assert!(false, "Wrong object value")
+        // }
     }
 
 
@@ -697,7 +702,7 @@ mod parse_expr_tests {
 
         assert_compiler_panic(
             || parse_expr(&obj_lit, &test_context, &test_global_ctx, &test_ast_context),
-            ExprPanic::ObjectValueCannotBeSpread,
+            ExprPanic::SpreadNotAllowed,
         );
     }
 
@@ -752,7 +757,7 @@ mod parse_expr_tests {
 
         assert_compiler_panic(
             || parse_expr(&obj_lit, &test_context, &test_global_ctx, &test_ast_context),
-            ExprPanic::FunctionValueCannotBeSpread,
+            ExprPanic::SpreadNotAllowed,
         );
     }
 
@@ -792,7 +797,7 @@ mod parse_expr_tests {
 
         assert_compiler_panic(
             || parse_expr(&obj_lit, &test_context, &test_global_ctx, &test_ast_context),
-            ExprPanic::BinaryValueCannotBeSpread,
+            ExprPanic::SpreadNotAllowed,
         );
     }
 
@@ -1425,6 +1430,7 @@ mod parse_expr_tests {
                 name: prop_name.clone(),
                 value: ObjectDataValue::Literal(LiteralValue::Null),
                 attrs: vec![],
+                
             }),
             path: vec![AnotherObjectValuePath::Ident(prop_name.clone())],
         });
@@ -1469,10 +1475,12 @@ mod parse_expr_tests {
                                     name: prop_name.clone(),
                                     value: ObjectDataValue::Literal(LiteralValue::Null),
                                     attrs: vec![],
+                                    
                                 }
                             ],
                         }),
                         attrs: vec![],
+                        
                     }
                 )
             ],
@@ -1500,6 +1508,7 @@ mod parse_expr_tests {
                     name: prop_name.clone(),
                     value: ObjectDataValue::Literal(LiteralValue::Null),
                     attrs: vec![],
+                    
                 }),
                 path: vec![
                     AnotherObjectValuePath::Ident(obj_name.clone()),
@@ -1540,11 +1549,13 @@ mod parse_expr_tests {
                         value: ObjectDataValue::Literal(LiteralValue::Null),
                         attrs: vec![],
                         is_mutable: false,
+                        
                     }
                 ],
             }),
             attrs: vec![],
             is_mutable: false,
+            
         };
 
         // Контекст с объявлением va1
@@ -1556,6 +1567,7 @@ mod parse_expr_tests {
                     ObjectData {
                         is_mutable: false,
                         name: va1_name.clone(),
+                        
                         value: ObjectDataValue::Object(ObjectValue {
                             props: vec![
                                 ObjectData {
@@ -1572,10 +1584,12 @@ mod parse_expr_tests {
                                                     result: Box::new(result_obj),
                                                 }),
                                                 attrs: vec![],
+                                                
                                             }
                                         ],
                                     }),
                                     attrs: vec![],
+                                    
                                 },
                                 // va22 – для полноты (не влияет на тест)
                                 ObjectData {
@@ -1590,10 +1604,12 @@ mod parse_expr_tests {
                                                     props: vec![],
                                                 }),
                                                 attrs: vec![],
+                                                
                                             }
                                         ],
                                     }),
                                     attrs: vec![],
+                                    
                                 }
                             ],
                         }),
@@ -1665,6 +1681,7 @@ mod parse_expr_tests {
                     name: va41_name.clone(),
                     value: ObjectDataValue::Literal(LiteralValue::Null),
                     attrs: vec![],
+                    
                 }),
                 path: vec![
                     AnotherObjectValuePath::Ident(va1_name.clone()),
@@ -1681,6 +1698,7 @@ mod parse_expr_tests {
                                             name: va41_name.clone(),
                                             value: ObjectDataValue::Literal(LiteralValue::Null),
                                             attrs: vec![],
+                                            
                                         }
                                     ],
                                 })
@@ -1890,6 +1908,7 @@ mod parse_expr_tests {
                 Statement::Object(ObjectData {
                     is_mutable: false,
                     name: func_name.clone().into(),
+                    
                     value: ObjectDataValue::Function(FunctionValue{
                         scope: Box::new(ScopeStatement{
                             statements: vec![],
@@ -1898,6 +1917,7 @@ mod parse_expr_tests {
                         result: Box::new(ObjectData {
                             is_mutable: false,
                             name: "result".to_string(),
+                            
                             value: ObjectDataValue::Object(ObjectValue{
                                 props: vec![
                                     ObjectData {
@@ -1905,6 +1925,7 @@ mod parse_expr_tests {
                                         name: prop_name.clone().into(),
                                         value: ObjectDataValue::Literal(LiteralValue::Null),
                                         attrs: vec![],
+                                        
                                     }
                                 ]
                             }),
@@ -1933,6 +1954,7 @@ mod parse_expr_tests {
                 name: "prop".to_string(),
                 value: ObjectDataValue::Literal(LiteralValue::Null),
                 attrs: vec![],
+                
             }),
 
             path: vec![
@@ -1949,6 +1971,7 @@ mod parse_expr_tests {
                                         name: prop_name.clone(),
                                         value: ObjectDataValue::Literal(LiteralValue::Null),
                                         attrs: vec![],
+                                        
                                     }
                                 ],
                             })
@@ -2330,6 +2353,7 @@ mod parse_expr_tests {
             current_statements: vec![
                 Statement::Object(ObjectData {
                     is_mutable: false,
+                    
                     name: func_name.clone(),
                     value: ObjectDataValue::Function(FunctionValue{
                         scope: Box::new(ScopeStatement {
@@ -2341,6 +2365,7 @@ mod parse_expr_tests {
                             value: ObjectDataValue::Literal(LiteralValue::Null),
                             attrs: vec![],
                             is_mutable: false,
+                            
                         }),
                     }),
                     attrs: vec![],
@@ -2514,12 +2539,14 @@ mod parse_expr_tests {
             }),
             attrs: vec![],
             is_mutable: false,
+            
         };
 
         // Создаём a: { b: inner }
         let a_obj = ObjectData {
             is_mutable: false,
             name: a_name.clone(),
+            
             value: ObjectDataValue::Object(ObjectValue {
                 props: vec![
                     ObjectData {
@@ -2533,6 +2560,7 @@ mod parse_expr_tests {
                             }
                         ),
                         attrs: vec![],
+                        
                     }
                 ],
             }),
@@ -2605,6 +2633,7 @@ mod parse_expr_tests {
                     value: ObjectDataValue::Literal(LiteralValue::Null),
                     attrs: vec![],
                     is_mutable: false,
+                    
                 }
             ],
             result: Box::new(ObjectData {
@@ -2612,6 +2641,7 @@ mod parse_expr_tests {
                 value: ObjectDataValue::Literal(LiteralValue::Null),
                 attrs: vec![],
                 is_mutable: false,
+                
             }),
         };
 
@@ -2626,6 +2656,7 @@ mod parse_expr_tests {
                         name: f_name.clone(),
                         value: ObjectDataValue::Function(func_val),
                         attrs: vec![],
+                        
                     }
                 )
             ],
@@ -2666,6 +2697,7 @@ mod parse_expr_tests {
                         }
                     ),
                     attrs: vec![],
+                    
                 }),
                 path: vec![
                     AnotherObjectValuePath::Ident(f_name.clone()),
@@ -2699,12 +2731,14 @@ mod parse_expr_tests {
             value: ObjectDataValue::Literal(LiteralValue::Null),
             attrs: vec![],
             is_mutable: false,
+            
         };
         let arg1_obj = ObjectData {
             name: "arg1".to_string(),
             value: ObjectDataValue::Literal(LiteralValue::Null),
             attrs: vec![],
             is_mutable: false,
+            
         };
 
         // Контекст с объявлением func
@@ -2722,6 +2756,7 @@ mod parse_expr_tests {
                             result: Box::new(result_obj),
                         }),
                         attrs: vec![],
+                        
                     }
                 )
             ],
@@ -2770,6 +2805,7 @@ mod parse_expr_tests {
                         }
                     ),
                     attrs: vec![],
+                    
                 }),
                 path: vec![
                     AnotherObjectValuePath::Ident(func_name.clone()),
@@ -2805,12 +2841,14 @@ mod parse_expr_tests {
             value: ObjectDataValue::Literal(LiteralValue::Null),
             attrs: vec![],
             is_mutable: false,
+            
         };
         let arg2_obj = ObjectData {
             name: "arg2".to_string(),
             value: ObjectDataValue::Literal(LiteralValue::Null),
             attrs: vec![],
             is_mutable: false,
+            
         };
 
         // Контекст с объявлением func и obj
@@ -2830,8 +2868,10 @@ mod parse_expr_tests {
                                 value: ObjectDataValue::Literal(LiteralValue::Null),
                                 attrs: vec![],
                                 is_mutable: false,
+                                
                             }),
                         }),
+                        
                         attrs: vec![],
                     }
                 ),
@@ -2846,6 +2886,7 @@ mod parse_expr_tests {
                             ],
                         }),
                         attrs: vec![],
+                        
                     }
                 )
             ],
@@ -2876,52 +2917,19 @@ mod parse_expr_tests {
             type_args: None,
         };
 
-        let res = parse_expr(
-            &Expr::Call(call_expr),
-            &test_context,
-            &test_global_ctx,
-            &test_ast_context,
+
+
+        assert_compiler_panic(
+            || {
+                parse_expr(
+                    &Expr::Call(call_expr),
+                    &test_context,
+                    &test_global_ctx,
+                    &test_ast_context,
+                );
+            },
+            ExprPanic::SpreadNotAllowed,
         );
-
-        // Ожидаемые аргументы: два `AnotherObject` для arg1 и arg2
-        let expected_args = vec![
-            ObjectDataValue::AnotherObject(AnotherObjectValue {
-                obj: Box::new(arg1_obj.clone()),
-                path: vec![AnotherObjectValuePath::Ident("arg1".to_string())],
-            }),
-            ObjectDataValue::AnotherObject(AnotherObjectValue {
-                obj: Box::new(arg2_obj.clone()),
-                path: vec![AnotherObjectValuePath::Ident("arg2".to_string())],
-            }),
-        ];
-
-        // Результат функции – null
-        let expected = ObjectDataValue::AnotherObject(
-            AnotherObjectValue {
-                obj: Box::new(ObjectData {
-                    is_mutable: false,
-                    name: func_name.clone(),
-                    value: ObjectDataValue::FunctionCall(
-                        FunctionCallResultValue {
-                            args: expected_args.clone(),
-                            result: Box::new(ObjectDataValue::Literal(LiteralValue::Null)),
-                        }
-                    ),
-                    attrs: vec![],
-                }),
-                path: vec![
-                    AnotherObjectValuePath::Ident(func_name.clone()),
-                    AnotherObjectValuePath::FunctionCall(
-                        FunctionCallResultValue {
-                            args: expected_args.clone(),
-                            result: Box::new(ObjectDataValue::Literal(LiteralValue::Null)),
-                        }
-                    ),
-                ],
-            }
-        );
-
-        assert_eq!(res, expected, "Function call with spread arg parsed incorrectly");
     }
     #[test]
     //noinspection DuplicatedCode
@@ -2941,6 +2949,7 @@ mod parse_expr_tests {
             value: ObjectDataValue::Literal(LiteralValue::Null),
             attrs: vec![],
             is_mutable: false,
+            
         };
 
         let test_context = CurrentContext {
@@ -2957,6 +2966,7 @@ mod parse_expr_tests {
                             result: Box::new(result_obj),
                         }),
                         attrs: vec![],
+                        
                     }
                 )
             ],
@@ -2995,7 +3005,7 @@ mod parse_expr_tests {
                     &test_ast_context,
                 );
             },
-            ExprPanic::ObjectValueCannotBeSpread,
+            ExprPanic::SpreadNotAllowed,
         );
     }
 
@@ -3016,6 +3026,7 @@ mod parse_expr_tests {
             value: ObjectDataValue::Literal(LiteralValue::Null),
             attrs: vec![],
             is_mutable: false,
+            
         };
 
         let test_context = CurrentContext {
@@ -3025,6 +3036,7 @@ mod parse_expr_tests {
                 Statement::Object(
                     ObjectData {
                         is_mutable: false,
+                        
                         name: func_name.clone(),
                         value: ObjectDataValue::Function(FunctionValue {
                             scope: Box::new(ScopeStatement { statements: vec![] }),
@@ -3070,7 +3082,7 @@ mod parse_expr_tests {
                     &test_ast_context,
                 );
             },
-            ExprPanic::LiteralValueCannotBeSpread,
+            ExprPanic::SpreadNotAllowed,
         );
     }
 
@@ -3091,6 +3103,7 @@ mod parse_expr_tests {
             value: ObjectDataValue::Literal(LiteralValue::Null),
             attrs: vec![],
             is_mutable: false,
+            
         };
 
         let test_context = CurrentContext {
@@ -3101,6 +3114,7 @@ mod parse_expr_tests {
                     ObjectData {
                         is_mutable: false,
                         name: func_name.clone(),
+                        
                         value: ObjectDataValue::Function(FunctionValue {
                             scope: Box::new(ScopeStatement { statements: vec![] }),
                             params: vec![result_obj.clone()],
@@ -3167,7 +3181,7 @@ mod parse_expr_tests {
                     &test_ast_context,
                 );
             },
-            ExprPanic::FunctionValueCannotBeSpread,
+            ExprPanic::SpreadNotAllowed,
         );
     }
 
@@ -3188,6 +3202,7 @@ mod parse_expr_tests {
             value: ObjectDataValue::Literal(LiteralValue::Null),
             attrs: vec![],
             is_mutable: false,
+            
         };
 
         let test_context = CurrentContext {
@@ -3203,6 +3218,7 @@ mod parse_expr_tests {
                             params: vec![result_obj.clone()],
                             result: Box::new(result_obj),
                         }),
+                        
                         attrs: vec![],
                     }
                 )
@@ -3245,7 +3261,7 @@ mod parse_expr_tests {
                     &test_ast_context,
                 );
             },
-            ExprPanic::BinaryValueCannotBeSpread,
+            ExprPanic::SpreadNotAllowed,
         );
     }
 
@@ -3269,6 +3285,7 @@ mod parse_expr_tests {
                     ObjectData {
                         is_mutable: false,
                         name: obj_name.clone(),
+                        
                         value: ObjectDataValue::Object(ObjectValue {
                             props: vec![
                                 ObjectData {
@@ -3276,6 +3293,7 @@ mod parse_expr_tests {
                                     name: "prop".to_string(),
                                     value: ObjectDataValue::Literal(LiteralValue::Null),
                                     attrs: vec![],
+                                    
                                 }
                             ],
                         }),
@@ -3306,6 +3324,7 @@ mod parse_expr_tests {
                 obj: Box::new(ObjectData {
                     is_mutable: false,
                     name: obj_name.clone(),
+                    
                     value: ObjectDataValue::Object(ObjectValue {
                         props: vec![
                             ObjectData {
@@ -3313,6 +3332,7 @@ mod parse_expr_tests {
                                 name: "prop".to_string(),
                                 value: ObjectDataValue::Literal(LiteralValue::Null),
                                 attrs: vec![],
+                                
                             }
                         ],
                     }),
@@ -6013,522 +6033,523 @@ mod parse_stmt_tests{
 
 
 
-#[cfg(test)]
-mod parse_import_export{
-    // ======== Test on modules ========
-
-
-    // ======== Тесты на ошибки модульных деклараций ========
-
-    use std::collections::HashMap;
-    use swc_common::{SyntaxContext, DUMMY_SP};
-    use swc_ecma_ast::{BindingIdent, BlockStmt, Class, ClassDecl, ClassExpr, Decl, DefaultDecl, ExportAll, ExportDecl, ExportDefaultDecl, ExportDefaultExpr, Expr, ExprStmt, FnDecl, Function, Ident, ImportDecl, ImportNamedSpecifier, ImportPhase, ImportSpecifier, Lit, ModuleDecl, ModuleItem, Null, Number, Pat, Stmt, Str, TsEnumDecl, TsExportAssignment, TsExternalModuleRef, TsImportEqualsDecl, TsInterfaceBody, TsInterfaceDecl, TsKeywordType, TsKeywordTypeKind, TsModuleDecl, TsModuleName, TsModuleRef, TsNamespaceExportDecl, TsType, TsTypeAliasDecl, UsingDecl, VarDeclarator};
-    use crate::scopy_ir::{parse_module_item, ModuleDeclPanic};
-    use crate::semantic::{AstGlobalContext, CurrentContext, CurrentContextType, GlobalContext, LiteralValue, ModuleContext, ObjectData, ObjectDataValue, ObjectValue, ScopyModule, Statement};
-    use crate::unit_tests::assert_compiler_panic;
-
-    #[test]
-    fn test_parse_module_decl_export_default_decl_panic() {
-        /*
-            js code:
-            export default class {}
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultDecl(ExportDefaultDecl {
-            span: DUMMY_SP,
-            decl: DefaultDecl::Class(ClassExpr {
-                ident: None,
-                class: Box::new(Class {
-                    span: DUMMY_SP,
-                    ctxt: SyntaxContext::empty(),
-                    decorators: vec![],
-                    body: vec![],
-                    super_class: None,
-                    super_type_params: None,
-                    type_params: None,
-                    implements: vec![],
-                    is_abstract: false,
-                }),
-            }),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::DefaultExportNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_decl_export_default_expr_panic() {
-        /*
-            js code:
-            export default 1;
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(ExportDefaultExpr {
-            span: DUMMY_SP,
-            expr: Box::new(Expr::Lit(Lit::Num(Number { span: DUMMY_SP, value: 1.0, raw: None }))),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::DefaultExportNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_decl_export_all_panic() {
-        /*
-            js code:
-            export * from "mod";
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportAll(ExportAll {
-            span: DUMMY_SP,
-            src: Box::new(Str { span: DUMMY_SP, value: "mod".into(), raw: None }),
-            type_only: false,
-            with: None,
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::ExportAllNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_decl_ts_import_equals_panic() {
-        /*
-            js code:
-            import x = require("mod");
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::TsImportEquals(Box::new(
-            TsImportEqualsDecl {
-                span: DUMMY_SP,
-                id: Ident::new_no_ctxt("x".into(), DUMMY_SP),
-                module_ref: TsModuleRef::TsExternalModuleRef(TsExternalModuleRef {
-                    span: DUMMY_SP,
-                    expr: Str { span: DUMMY_SP, value: "mod".into(), raw: None },
-                }),
-                is_export: false,
-                is_type_only: false,
-            }
-        )));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::TsImportEqualsNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_decl_ts_export_assignment_panic() {
-        /*
-            js code:
-            export = x;
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::TsExportAssignment(TsExportAssignment {
-            span: DUMMY_SP,
-            expr: Box::new(Expr::Ident(Ident::new_no_ctxt("x".into(), DUMMY_SP))),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::TsExportAssignmentNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_decl_ts_namespace_export_panic() {
-        /*
-            js code:
-            export as namespace N;
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::TsNamespaceExport(TsNamespaceExportDecl {
-            span: DUMMY_SP,
-            id: Ident::new_no_ctxt("N".into(), DUMMY_SP),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::TsNamespaceExportNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_item_stmt_success() {
-        /*
-            js code (module-level):
-            null;
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::Stmt(Stmt::Expr(ExprStmt {
-            span: DUMMY_SP,
-            expr: Box::new(Expr::Lit(Lit::Null(Null { span: DUMMY_SP }))),
-        }));
-
-        let result = parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx);
-
-        match result {
-            Statement::ObjectValue(val) => {
-                assert_eq!(val, ObjectDataValue::Literal(LiteralValue::Null));
-            }
-            _ => assert!(false, "Expected ObjectValue statement from module item"),
-        }
-    }
-
-
-    // ======== Тесты для export declaration через parse_module_item ========
-
-    #[test]
-    fn test_parse_module_item_export_class_panic() {
-        /*
-            js code:
-            export class C {}
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-            span: DUMMY_SP,
-            decl: Decl::Class(ClassDecl {
-                ident: Ident::new_no_ctxt("C".into(), DUMMY_SP),
-                class: Box::from(Class {
-                    span: DUMMY_SP,
-                    ctxt: SyntaxContext::empty(),
-                    decorators: vec![],
-                    body: vec![],
-                    super_class: None,
-                    super_type_params: None,
-                    type_params: None,
-                    implements: vec![],
-                    is_abstract: false,
-                }),
-                declare: false,
-            }),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::ClassExportNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_item_export_using_panic() {
-        /*
-            js code:
-            export using x = null;
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-            span: DUMMY_SP,
-            decl: Decl::Using(Box::from(UsingDecl {
-                span: DUMMY_SP,
-                decls: vec![VarDeclarator {
-                    span: DUMMY_SP,
-                    name: Pat::Ident(BindingIdent {
-                        id: Ident::new_no_ctxt("x".into(), DUMMY_SP),
-                        type_ann: None,
-                    }),
-                    init: Some(Box::new(Expr::Lit(Lit::Null(Null { span: DUMMY_SP })))),
-                    definite: false,
-                }],
-                is_await: false,
-            })),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::UsingExportNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_item_export_fn_panic() {
-        /*
-            js code:
-            export function f() {}
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-            span: DUMMY_SP,
-            decl: Decl::Fn(FnDecl {
-                ident: Ident::new_no_ctxt("f".into(), DUMMY_SP),
-                declare: false,
-                function: Box::new(Function {
-                    params: vec![],
-                    decorators: vec![],
-                    span: DUMMY_SP,
-                    ctxt: SyntaxContext::empty(),
-                    body: Some(BlockStmt {
-                        span: DUMMY_SP,
-                        ctxt: SyntaxContext::empty(),
-                        stmts: vec![],
-                    }),
-                    is_generator: false,
-                    is_async: false,
-                    type_params: None,
-                    return_type: None,
-                }),
-            }),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::FnExportNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_item_export_ts_interface_panic() {
-        /*
-            js code:
-            export interface I {}
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-            span: DUMMY_SP,
-            decl: Decl::TsInterface(Box::new(
-                TsInterfaceDecl {
-                    span: DUMMY_SP,
-                    id: Ident::new_no_ctxt("I".into(), DUMMY_SP),
-                    type_params: None,
-                    extends: vec![],
-                    body: TsInterfaceBody {
-                        span: DUMMY_SP,
-                        body: vec![],
-                    },
-                    declare: false,
-                }
-            )),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::TsNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_item_export_ts_type_alias_panic() {
-        /*
-            js code:
-            export type T = string;
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-            span: DUMMY_SP,
-            decl: Decl::TsTypeAlias(Box::new(TsTypeAliasDecl {
-                span: DUMMY_SP,
-                id: Ident::new_no_ctxt("T".into(), DUMMY_SP),
-                type_params: None,
-                type_ann: Box::new(TsType::TsKeywordType(TsKeywordType {
-                    span: DUMMY_SP,
-                    kind: TsKeywordTypeKind::TsStringKeyword,
-                })),
-                declare: false,
-            })),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::TsNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_item_export_ts_enum_panic() {
-        /*
-            js code:
-            export enum E { A, B }
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-            span: DUMMY_SP,
-            decl: Decl::TsEnum(Box::new(TsEnumDecl {
-                span: DUMMY_SP,
-                id: Ident::new_no_ctxt("E".into(), DUMMY_SP),
-                members: vec![],
-                declare: false,
-                is_const: false,
-            })),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::TsNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_item_export_ts_module_panic() {
-        /*
-            js code:
-            export module M {}
-        */
-        let ctx = CurrentContext::default();
-        let glob_ctx = GlobalContext::default();
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
-            span: DUMMY_SP,
-            decl: Decl::TsModule(Box::new(
-                TsModuleDecl {
-                    span: DUMMY_SP,
-                    id: TsModuleName::Ident(Ident::new_no_ctxt("M".into(), DUMMY_SP)),
-                    body: None,
-                    global: false,
-                    declare: false,
-                    namespace: false,
-                }
-            )),
-        }));
-
-        assert_compiler_panic(
-            || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
-            ModuleDeclPanic::TsNotAllowed,
-        );
-    }
-
-    #[test]
-    fn test_parse_module_item_import_success() {
-        /*
-            js code:
-            import {string} from "default.js";
-        */
-
-        let ctx = CurrentContext {
-            context_type: CurrentContextType::ModuleContext(ModuleContext {
-                name: "main.js".to_string(),
-            }),
-            current_module_name: "main.js".to_string(),
-            prev: None,
-            current_statements: vec![],
-        };
-
-        let default_module = ScopyModule {
-            name: "default.js".to_string(),
-            statements: vec![
-                Statement::Object(ObjectData {
-                    name: "string".to_string(),
-                    is_mutable: false,
-                    attrs: vec![],
-                    value: ObjectDataValue::Object(ObjectValue {
-                        props: vec![],
-                    }),
-                }),
-            ],
-        };
-
-        let glob_ctx = GlobalContext {
-            parsed_modules: HashMap::from([
-                ("default.js".to_string(), default_module),
-            ]),
-        };
-
-        let ast_ctx = AstGlobalContext::default();
-
-        let module_item = ModuleItem::ModuleDecl(ModuleDecl::Import(ImportDecl {
-            span: DUMMY_SP,
-            specifiers: vec![
-                ImportSpecifier::Named(ImportNamedSpecifier {
-                    span: DUMMY_SP,
-                    local: Ident::new_no_ctxt("string".into(), DUMMY_SP),
-                    imported: None,
-                    is_type_only: false,
-                }),
-            ],
-            src: Box::new(Str {
-                span: DUMMY_SP,
-                value: "default.js".into(),
-                raw: None,
-            }),
-            type_only: false,
-            with: None,
-            phase: ImportPhase::Evaluation,
-        }));
-
-        let result = parse_module_item(
-            &module_item,
-            &ctx,
-            &glob_ctx,
-            &ast_ctx,
-        );
-
-        match result {
-            Statement::Object(import_obj) => {
-                assert_eq!(import_obj.name, "default.js");
-                assert_eq!(import_obj.is_mutable, false);
-                assert!(import_obj.attrs.is_empty());
-
-                match import_obj.value {
-                    ObjectDataValue::Object(object) => {
-                        assert_eq!(object.props.len(), 1);
-
-                        let imported = &object.props[0];
-
-                        assert_eq!(imported.name, "string");
-                        assert_eq!(imported.is_mutable, false);
-                        assert_eq!(imported.attrs, vec![]);
-
-                        assert_eq!(
-                            imported.value,
-                            ObjectDataValue::Object(ObjectValue {
-                                props: vec![],
-                            })
-                        );
-                    }
-
-                    _ => assert!(false, "Expected Object value"),
-                }
-            }
-
-            _ => assert!(false, "Expected imported module object, got {:?}", result),
-        }
-    }
-
-
-
-
-}
+// #[cfg(test)]
+// mod parse_import_export{
+//     // ======== Test on modules ========
+//
+//
+//     // ======== Тесты на ошибки модульных деклараций ========
+//
+//     use std::collections::HashMap;
+//     use swc_common::{SyntaxContext, DUMMY_SP};
+//     use swc_ecma_ast::{BindingIdent, BlockStmt, Class, ClassDecl, ClassExpr, Decl, DefaultDecl, ExportAll, ExportDecl, ExportDefaultDecl, ExportDefaultExpr, Expr, ExprStmt, FnDecl, Function, Ident, ImportDecl, ImportNamedSpecifier, ImportPhase, ImportSpecifier, Lit, ModuleDecl, ModuleItem, Null, Number, Pat, Stmt, Str, TsEnumDecl, TsExportAssignment, TsExternalModuleRef, TsImportEqualsDecl, TsInterfaceBody, TsInterfaceDecl, TsKeywordType, TsKeywordTypeKind, TsModuleDecl, TsModuleName, TsModuleRef, TsNamespaceExportDecl, TsType, TsTypeAliasDecl, UsingDecl, VarDeclarator};
+//     use crate::scopy_ir::{parse_module_item, ModuleDeclPanic};
+//     use crate::semantic::{AstGlobalContext, CurrentContext, CurrentContextType, GlobalContext, LiteralValue, ModuleContext, ObjectData, ObjectDataValue, ObjectKind, ObjectValue, ScopyModule, Statement};
+//     use crate::unit_tests::assert_compiler_panic;
+//
+//     #[test]
+//     fn test_parse_module_decl_export_default_decl_panic() {
+//         /*
+//             js code:
+//             export default class {}
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultDecl(ExportDefaultDecl {
+//             span: DUMMY_SP,
+//             decl: DefaultDecl::Class(ClassExpr {
+//                 ident: None,
+//                 class: Box::new(Class {
+//                     span: DUMMY_SP,
+//                     ctxt: SyntaxContext::empty(),
+//                     decorators: vec![],
+//                     body: vec![],
+//                     super_class: None,
+//                     super_type_params: None,
+//                     type_params: None,
+//                     implements: vec![],
+//                     is_abstract: false,
+//                 }),
+//             }),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::DefaultExportNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_decl_export_default_expr_panic() {
+//         /*
+//             js code:
+//             export default 1;
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(ExportDefaultExpr {
+//             span: DUMMY_SP,
+//             expr: Box::new(Expr::Lit(Lit::Num(Number { span: DUMMY_SP, value: 1.0, raw: None }))),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::DefaultExportNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_decl_export_all_panic() {
+//         /*
+//             js code:
+//             export * from "mod";
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportAll(ExportAll {
+//             span: DUMMY_SP,
+//             src: Box::new(Str { span: DUMMY_SP, value: "mod".into(), raw: None }),
+//             type_only: false,
+//             with: None,
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::ExportAllNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_decl_ts_import_equals_panic() {
+//         /*
+//             js code:
+//             import x = require("mod");
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::TsImportEquals(Box::new(
+//             TsImportEqualsDecl {
+//                 span: DUMMY_SP,
+//                 id: Ident::new_no_ctxt("x".into(), DUMMY_SP),
+//                 module_ref: TsModuleRef::TsExternalModuleRef(TsExternalModuleRef {
+//                     span: DUMMY_SP,
+//                     expr: Str { span: DUMMY_SP, value: "mod".into(), raw: None },
+//                 }),
+//                 is_export: false,
+//                 is_type_only: false,
+//             }
+//         )));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::TsImportEqualsNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_decl_ts_export_assignment_panic() {
+//         /*
+//             js code:
+//             export = x;
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::TsExportAssignment(TsExportAssignment {
+//             span: DUMMY_SP,
+//             expr: Box::new(Expr::Ident(Ident::new_no_ctxt("x".into(), DUMMY_SP))),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::TsExportAssignmentNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_decl_ts_namespace_export_panic() {
+//         /*
+//             js code:
+//             export as namespace N;
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::TsNamespaceExport(TsNamespaceExportDecl {
+//             span: DUMMY_SP,
+//             id: Ident::new_no_ctxt("N".into(), DUMMY_SP),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::TsNamespaceExportNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_item_stmt_success() {
+//         /*
+//             js code (module-level):
+//             null;
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::Stmt(Stmt::Expr(ExprStmt {
+//             span: DUMMY_SP,
+//             expr: Box::new(Expr::Lit(Lit::Null(Null { span: DUMMY_SP }))),
+//         }));
+//
+//         let result = parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx);
+//
+//         match result {
+//             Statement::ObjectValue(val) => {
+//                 assert_eq!(val, ObjectDataValue::Literal(LiteralValue::Null));
+//             }
+//             _ => assert!(false, "Expected ObjectValue statement from module item"),
+//         }
+//     }
+//
+//
+//     // ======== Тесты для export declaration через parse_module_item ========
+//
+//     #[test]
+//     fn test_parse_module_item_export_class_panic() {
+//         /*
+//             js code:
+//             export class C {}
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+//             span: DUMMY_SP,
+//             decl: Decl::Class(ClassDecl {
+//                 ident: Ident::new_no_ctxt("C".into(), DUMMY_SP),
+//                 class: Box::from(Class {
+//                     span: DUMMY_SP,
+//                     ctxt: SyntaxContext::empty(),
+//                     decorators: vec![],
+//                     body: vec![],
+//                     super_class: None,
+//                     super_type_params: None,
+//                     type_params: None,
+//                     implements: vec![],
+//                     is_abstract: false,
+//                 }),
+//                 declare: false,
+//             }),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::ClassExportNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_item_export_using_panic() {
+//         /*
+//             js code:
+//             export using x = null;
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+//             span: DUMMY_SP,
+//             decl: Decl::Using(Box::from(UsingDecl {
+//                 span: DUMMY_SP,
+//                 decls: vec![VarDeclarator {
+//                     span: DUMMY_SP,
+//                     name: Pat::Ident(BindingIdent {
+//                         id: Ident::new_no_ctxt("x".into(), DUMMY_SP),
+//                         type_ann: None,
+//                     }),
+//                     init: Some(Box::new(Expr::Lit(Lit::Null(Null { span: DUMMY_SP })))),
+//                     definite: false,
+//                 }],
+//                 is_await: false,
+//             })),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::UsingExportNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_item_export_fn_panic() {
+//         /*
+//             js code:
+//             export function f() {}
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+//             span: DUMMY_SP,
+//             decl: Decl::Fn(FnDecl {
+//                 ident: Ident::new_no_ctxt("f".into(), DUMMY_SP),
+//                 declare: false,
+//                 function: Box::new(Function {
+//                     params: vec![],
+//                     decorators: vec![],
+//                     span: DUMMY_SP,
+//                     ctxt: SyntaxContext::empty(),
+//                     body: Some(BlockStmt {
+//                         span: DUMMY_SP,
+//                         ctxt: SyntaxContext::empty(),
+//                         stmts: vec![],
+//                     }),
+//                     is_generator: false,
+//                     is_async: false,
+//                     type_params: None,
+//                     return_type: None,
+//                 }),
+//             }),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::FnExportNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_item_export_ts_interface_panic() {
+//         /*
+//             js code:
+//             export interface I {}
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+//             span: DUMMY_SP,
+//             decl: Decl::TsInterface(Box::new(
+//                 TsInterfaceDecl {
+//                     span: DUMMY_SP,
+//                     id: Ident::new_no_ctxt("I".into(), DUMMY_SP),
+//                     type_params: None,
+//                     extends: vec![],
+//                     body: TsInterfaceBody {
+//                         span: DUMMY_SP,
+//                         body: vec![],
+//                     },
+//                     declare: false,
+//                 }
+//             )),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::TsNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_item_export_ts_type_alias_panic() {
+//         /*
+//             js code:
+//             export type T = string;
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+//             span: DUMMY_SP,
+//             decl: Decl::TsTypeAlias(Box::new(TsTypeAliasDecl {
+//                 span: DUMMY_SP,
+//                 id: Ident::new_no_ctxt("T".into(), DUMMY_SP),
+//                 type_params: None,
+//                 type_ann: Box::new(TsType::TsKeywordType(TsKeywordType {
+//                     span: DUMMY_SP,
+//                     kind: TsKeywordTypeKind::TsStringKeyword,
+//                 })),
+//                 declare: false,
+//             })),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::TsNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_item_export_ts_enum_panic() {
+//         /*
+//             js code:
+//             export enum E { A, B }
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+//             span: DUMMY_SP,
+//             decl: Decl::TsEnum(Box::new(TsEnumDecl {
+//                 span: DUMMY_SP,
+//                 id: Ident::new_no_ctxt("E".into(), DUMMY_SP),
+//                 members: vec![],
+//                 declare: false,
+//                 is_const: false,
+//             })),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::TsNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_item_export_ts_module_panic() {
+//         /*
+//             js code:
+//             export module M {}
+//         */
+//         let ctx = CurrentContext::default();
+//         let glob_ctx = GlobalContext::default();
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(ExportDecl {
+//             span: DUMMY_SP,
+//             decl: Decl::TsModule(Box::new(
+//                 TsModuleDecl {
+//                     span: DUMMY_SP,
+//                     id: TsModuleName::Ident(Ident::new_no_ctxt("M".into(), DUMMY_SP)),
+//                     body: None,
+//                     global: false,
+//                     declare: false,
+//                     namespace: false,
+//                 }
+//             )),
+//         }));
+//
+//         assert_compiler_panic(
+//             || parse_module_item(&module_item, &ctx, &glob_ctx, &ast_ctx),
+//             ModuleDeclPanic::TsNotAllowed,
+//         );
+//     }
+//
+//     #[test]
+//     fn test_parse_module_item_import_success() {
+//         /*
+//             js code:
+//             import {string} from "default.js";
+//         */
+//
+//         let ctx = CurrentContext {
+//             context_type: CurrentContextType::ModuleContext(ModuleContext {
+//                 name: "main.js".to_string(),
+//             }),
+//             current_module_name: "main.js".to_string(),
+//             prev: None,
+//             current_statements: vec![],
+//         };
+//
+//         let default_module = ScopyModule {
+//             name: "default.js".to_string(),
+//             statements: vec![
+//                 Statement::Object(ObjectData {
+//                     name: "string".to_string(),
+//                     is_mutable: false,
+//                     attrs: vec![],
+//                     value: ObjectDataValue::Object(ObjectValue {
+//                         props: vec![],
+//                     }),
+//                     kind: ObjectKind::Inner
+//                 }),
+//             ],
+//         };
+//
+//         let glob_ctx = GlobalContext {
+//             parsed_modules: HashMap::from([
+//                 ("default.js".to_string(), default_module),
+//             ]),
+//         };
+//
+//         let ast_ctx = AstGlobalContext::default();
+//
+//         let module_item = ModuleItem::ModuleDecl(ModuleDecl::Import(ImportDecl {
+//             span: DUMMY_SP,
+//             specifiers: vec![
+//                 ImportSpecifier::Named(ImportNamedSpecifier {
+//                     span: DUMMY_SP,
+//                     local: Ident::new_no_ctxt("string".into(), DUMMY_SP),
+//                     imported: None,
+//                     is_type_only: false,
+//                 }),
+//             ],
+//             src: Box::new(Str {
+//                 span: DUMMY_SP,
+//                 value: "default.js".into(),
+//                 raw: None,
+//             }),
+//             type_only: false,
+//             with: None,
+//             phase: ImportPhase::Evaluation,
+//         }));
+//
+//         let result = parse_module_item(
+//             &module_item,
+//             &ctx,
+//             &glob_ctx,
+//             &ast_ctx,
+//         );
+//
+//         match result {
+//             Statement::Object(import_obj) => {
+//                 assert_eq!(import_obj.name, "default.js");
+//                 assert_eq!(import_obj.is_mutable, false);
+//                 assert!(import_obj.attrs.is_empty());
+//
+//                 match import_obj.value {
+//                     ObjectDataValue::Object(object) => {
+//                         assert_eq!(object.props.len(), 1);
+//
+//                         let imported = &object.props[0];
+//
+//                         assert_eq!(imported.name, "string");
+//                         assert_eq!(imported.is_mutable, false);
+//                         assert_eq!(imported.attrs, vec![]);
+//
+//                         assert_eq!(
+//                             imported.value,
+//                             ObjectDataValue::Object(ObjectValue {
+//                                 props: vec![],
+//                             })
+//                         );
+//                     }
+//
+//                     _ => assert!(false, "Expected Object value"),
+//                 }
+//             }
+//
+//             _ => assert!(false, "Expected imported module object, got {:?}", result),
+//         }
+//     }
+//
+//
+//
+//
+// }

@@ -13,7 +13,7 @@ use wasm_encoder::{
     TypeSection,
     ValType,
 };
-use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, BinaryObjectValue, BinaryOpType, ConditionStatement, FunctionCallResultValue, FunctionValue, LiteralValue, LoopStatement, ObjectData, ObjectDataValue, ObjectIdent, ObjectValue, ScopeStatement, ScopyModule, ScopyProject, Statement};
+use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, BinaryObjectValue, BinaryOpType, ConditionStatement, ExportDataValue, FunctionCallResultValue, FunctionValue, ImportDataValue, LiteralValue, LoopStatement, ObjectData, ObjectDataValue, ObjectValue, ScopeStatement, ScopyModule, ScopyProject, Statement};
 
 trait InsertMany<T> {
     fn insert_many<I: IntoIterator<Item = T>>(&mut self, iter: I);
@@ -44,56 +44,44 @@ pub fn none_data () -> AlignedData{
 
 
 
-pub fn convert_to_lowering_ir(scopy_project: &ScopyProject) -> Vec<OperationUnit>{
+pub fn convert_to_lowering_ir(scopy_project: &ScopyProject) -> Vec<ModuleWithOperations>{
     let mut current_ctx =  &mut CurrentOperationContext::default();
-    let start_program = OperationUnit::StartProgram;
-    current_ctx.last_operation.push(start_program.clone());
-    let t =scopy_project.modules.iter().flat_map(|module| {
+    let t = scopy_project.modules.iter().map(|module| {
 
-        let module_ident = vec![module.name.clone()] as ObjectIdentFull;
+        let start_module = OperationUnit::StartModule;
 
-        let module_id = OperationUnit::ModuleId(module_ident.clone());
-
-        current_ctx.last_operation.push(module_id.clone());
+        current_ctx.last_operation.push(start_module.clone());
         let operation_units = module.statements.iter().flat_map(|stmt|{
             let res = convert_statement(&stmt, current_ctx);
             current_ctx.last_operation.insert_many(res.clone());
             res
         }).collect::<Vec<_>>();
 
+        let end_module = OperationUnit::EndModule;
 
 
+        let operation_units = [vec![start_module], operation_units, vec![end_module]].concat();
 
-        [vec![module_id], operation_units].concat()
-
+        ModuleWithOperations{
+            name: module.name.clone(),
+            operations: operation_units,
+        }
     }).collect::<Vec<_>>();
-    
-    let end_program = OperationUnit::EndProgram;
-    
-    
-    [vec![start_program], t, vec![end_program]].concat()
+
+
+
+
+    t
 
 }
 
-// impl OperationUnit {
-//
-//     pub fn new(op_type: OperationUnit, id: ObjectIdentFull) -> Self {
-//         OperationUnit {
-//             operation_type: op_type,
-//             owner_id: id,
-//         }
-//     }
-// }
+
+
 
 
 type AlignSize = i64;
+pub type ObjectIdent = String;
 pub type ObjectIdentFull = Vec<ObjectIdent>;
-
-// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-// pub struct OwnerUnitIdIdentMap{
-//     pub idents: Vec<ObjectIdent>,
-//     pub id: OwnerUnitId,
-// }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct PrimitiveVal{
@@ -109,11 +97,17 @@ pub struct AnotherObjectVal{
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub struct  ModuleWithOperations {
+    pub name: ObjectIdent,
+    pub operations: Vec<OperationUnit>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub enum OperationUnit {
     CallChainStart,
     CallChainEnd,
+    StartModule,
     Function(ObjectIdentFull),
-    ModuleId(ObjectIdentFull),
     FuncResult(ObjectIdentFull),
     FuncArg(ObjectIdentFull),
     FunctionCall(ObjectIdentFull),
@@ -125,6 +119,8 @@ pub enum OperationUnit {
     Bool(PrimitiveVal),
     Null(PrimitiveVal),
     Num(PrimitiveVal),
+    Export(ObjectIdentFull),
+    Import(ObjectIdentFull),
     IfScope,
     LoopScope,
     ElseScope,
@@ -134,10 +130,6 @@ pub enum OperationUnit {
     EndCond,
     EmptyScope,
     EndModule,
-
-    StartProgram,
-    EndProgram,
-
     EqEq,
     /// `!=`
     NotEq,
@@ -171,24 +163,11 @@ pub enum OperationUnit {
 
 
 
-#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-pub enum ChainedTagIdent{
-    Object(ObjectIdentFull),
-    Function(ObjectIdentFull),
-    ModuleId(ObjectIdentFull),
-    FuncResult(ObjectIdentFull),
-    FuncArg(ObjectIdentFull),
-    AnotherObject(ObjectIdentFull),
-    FunctionCall(ObjectIdentFull),
-}
+
 
 
 type AlignedData = Vec<u8>;
 
-// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-// pub struct OperationUnit {
-//     pub operation_type: OperationUnit
-// }
 
 
 
@@ -227,17 +206,11 @@ fn convert_obj (obj: &ObjectData, current_ctx: &CurrentOperationContext, cur_obj
 
     let cur_mtx = &mut current_ctx.clone();
     let  cur_obj = vec![cur_obj.clone(), vec![obj.name.clone()]].concat() as ObjectIdentFull;
-    // let obj_id = cur_owner_id + 1;
 
-
-    // let oper = vec![OperationUnit::new(chained_tags.clone(), none_data(), cur_obj.clone())];
-
-    // cur_mtx.last_operation.insert_many(oper.clone());
 
     let res = convert_object_data_value(&obj.value, cur_mtx, cur_obj.clone());
 
 
-    // [oper, res.clone()].concat()
     res
 }
 
@@ -248,13 +221,13 @@ fn convert_object_data_value(
 
 
 
-    let d = match &obj_data_val{
+    match &obj_data_val{
         ObjectDataValue::Enum(_) => todo!(),
         ObjectDataValue::Object(object_val) => {
             convert_obj_val(&object_val, current_context, current_obj)
         },
         ObjectDataValue::AnotherObject(another_obj) => {
-            convert_another_object(another_obj, current_context, current_obj)
+            convert_another_object(another_obj, current_context, current_obj, false, false)
         },
         ObjectDataValue::Literal(literal) => {
             convert_literal(literal, current_obj)
@@ -268,8 +241,38 @@ fn convert_object_data_value(
         ObjectDataValue::Binary(bin) => {
             convert_bin(bin, current_context, current_obj)
         }
-    };
-    d
+        ObjectDataValue::Import(import) => {
+            parse_imports(import, current_context, current_obj)
+        }
+        ObjectDataValue::Export(export) => {
+            parse_exports(export, current_context, current_obj)
+        }
+    }
+}
+
+
+fn parse_exports(
+    export: &ExportDataValue,
+    current_context: &CurrentOperationContext,
+    current_obj: ObjectIdentFull) -> Vec<OperationUnit> {
+
+    let opers = export.exports.iter().flat_map(|m| {
+        let objs = convert_another_object(m, current_context, current_obj.clone(), true, false);
+        objs
+    }).collect::<Vec<_>>();
+    opers
+}
+
+fn parse_imports(
+    export: &ImportDataValue,
+    current_context: &CurrentOperationContext,
+    current_obj: ObjectIdentFull) -> Vec<OperationUnit> {
+
+    let opers = export.imports.iter().flat_map(|m| {
+        let objs = convert_another_object(m, current_context, current_obj.clone(), false, true);
+        objs
+    }).collect::<Vec<_>>();
+    opers
 }
 
 fn convert_bin(bin: &BinaryObjectValue, current_context: &CurrentOperationContext,  cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
@@ -289,9 +292,6 @@ fn convert_bin_oper(bin: &BinaryObjectValue, current_context: &CurrentOperationC
 
 fn parse_func_call(func_call: &FunctionCallResultValue, current_context: &CurrentOperationContext,  cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
     let current_context = &mut current_context.clone();
-    // let call_func_oper = vec![OperationUnit::new(chained_tags.clone(), none_data(), cur_obj.clone())];
-    //
-    // current_context.last_operation.insert_many(call_func_oper.clone());
 
     let args_operations = parse_func_cal_param(func_call, current_context, cur_obj.clone());
     current_context.last_operation.insert_many(args_operations.clone());
@@ -316,12 +316,11 @@ fn parse_func_call_result (func_call: &FunctionCallResultValue, current_context:
 }
 
 fn parse_func_val(func: &FunctionValue, current_context: &CurrentOperationContext,  cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
-    // let call_unit = vec![OperationUnit::new(chained_tags.clone(), none_data(), cur_obj.clone())];
-
     let current_context = &mut current_context.clone();
 
-    // current_context.last_operation.insert_many(call_unit.clone());
     let params = parse_func_params(func, current_context, cur_obj.clone());
+
+    
 
 
     current_context.last_operation.insert_many(params.clone());
@@ -380,12 +379,11 @@ fn convert_binary_op_type(
 }
 
 
-fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &CurrentOperationContext, curr_owner: ObjectIdentFull) -> Vec<OperationUnit> {
+fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &CurrentOperationContext, curr_owner: ObjectIdentFull, is_export:bool, is_import: bool) -> Vec<OperationUnit> {
 
     let call_chain_start = OperationUnit::CallChainStart;
 
-    let mut chained_path = &mut vec![]  ;
-    // let mut func_cal = &mut vec![];
+    let mut full_ident = &mut vec![];
 
     let current_context = &mut current_context.clone();
 
@@ -393,7 +391,7 @@ fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &Cu
     let opers = another_obj.path.iter().for_each(|m| {
         match m {
             AnotherObjectValuePath::Ident(ident) => {
-                chained_path.push(ident.clone());
+                full_ident.push(ident.clone());
 
             }
             AnotherObjectValuePath::FunctionCall(func_call) => {
@@ -404,13 +402,18 @@ fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &Cu
         }
     });
 
-
-    if curr_owner.is_empty(){
-        vec![OperationUnit::AnotherObject(chained_path.clone())]
+    if is_export{
+        vec![OperationUnit::Export(full_ident.clone())]
+    }
+    else if is_import {
+        vec![OperationUnit::Import(full_ident.clone())]
+    }
+    else if curr_owner.is_empty(){
+        vec![OperationUnit::AnotherObject(full_ident.clone())]
     }
     else {
         vec![OperationUnit::AnotherObjectVal(AnotherObjectVal{
-            data: chained_path.clone(),
+            data: full_ident.clone(),
             ident: curr_owner,
         })]
     }
@@ -439,13 +442,13 @@ fn convert_literal(literal: &LiteralValue, current_id: ObjectIdentFull) -> Vec<O
     match &literal {
         LiteralValue::Str(val) => {
             vec![OperationUnit::Str(PrimitiveVal{
-                data: val.val.clone().into_bytes(),
+                data: align(val.val.clone().into_bytes()),
                 ident: current_id.clone(),
             })]
         },
         LiteralValue::Bool(val) => {
             vec![OperationUnit::Bool(PrimitiveVal{
-               data: bool_to_bytes(val.val.clone()),
+                data: align(bool_to_bytes(val.val.clone())),
                 ident: current_id.clone(),
             })]
         },
@@ -457,7 +460,7 @@ fn convert_literal(literal: &LiteralValue, current_id: ObjectIdentFull) -> Vec<O
         },
         LiteralValue::Num(val) => {
             vec![OperationUnit::Num(PrimitiveVal{
-                data: val.val.to_le_bytes().to_vec(),
+                data: align(val.val.to_le_bytes().to_vec()),
                 ident: current_id.clone(),
             })]
         },
@@ -540,9 +543,7 @@ fn convert_cond(cond: &ObjectDataValue, current_ctx: &CurrentOperationContext, o
 
     let cond_operations = convert_object_data_value(cond, current_ctx, ObjectIdentFull::default());
     let end_cond = OperationUnit::EndCond;
-    // let s = OperationUnit::new(chained_tags,  none_data(), owner_unit_id);
 
-    // [cond_operations.clone(), vec![s]].concat()
     [vec![start_cond], cond_operations, vec![end_cond]].concat()
 }
 

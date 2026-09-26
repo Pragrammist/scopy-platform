@@ -35,8 +35,7 @@ pub struct AstCurrentContext{
 
 
 
-#[derive(Clone)]
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct AstGlobalContext{
     pub comments:SingleThreadedComments,
     pub cm: Lrc<SourceMap>,
@@ -49,8 +48,8 @@ pub struct AstGlobalContext{
 
 
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
+
 #[allow(unused)]
 pub enum  CurrentContextType{
     ModuleContext(ModuleContext),
@@ -64,34 +63,32 @@ impl Default for CurrentContextType {
 }
 
 
+#[derive(Default, Debug, Clone)]
+
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(Default)]
 pub struct ModuleContext{
     pub name: ObjectIdent,
 }
 
 
+
+#[derive(Clone, Debug)]
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
 pub struct FunctionContext{
     pub name: ObjectIdent,
 }
 
 
+#[derive(Clone, Debug)]
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
 pub struct LoopContext{
     pub condition: ObjectDataValue
 }
 
 
+
+#[derive(Clone, Debug)]
 #[allow(unused)]
-#[derive(Clone)]
-#[derive(Debug)]
 pub struct ConditionContext{
     pub condition: ObjectDataValue,
     pub true_context: ConditionTrueContext,
@@ -101,22 +98,19 @@ pub struct ConditionContext{
 
 
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct  ConditionTrueContext  {
 
 }
 
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ConditionFalseContext{
 
 }
 
 
 
-#[allow(unused)]
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct ObjectData {
     pub is_mutable: bool,
@@ -128,7 +122,8 @@ pub struct ObjectData {
 
 
 
-#[allow(unused)]
+
+
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 #[serde(tag = "val", content = "val_data")]
 pub enum ObjectDataValue {
@@ -138,13 +133,28 @@ pub enum ObjectDataValue {
     Literal (LiteralValue),
     Function (FunctionValue),
     FunctionCall(FunctionCallResultValue),
-    Binary (BinaryObjectValue)
+    Binary (BinaryObjectValue),
+    Import (ImportDataValue),
+    Export (ExportDataValue)
+}
+
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+#[serde(tag = "import-val")]
+pub struct ImportDataValue {
+    pub imports: Vec<AnotherObjectValue>
+}
+
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+#[serde(tag = "export-val")]
+pub struct ExportDataValue {
+    pub exports: Vec<AnotherObjectValue>
 }
 
 
 
 
-#[allow(unused)]
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct BinaryObjectValue{
     pub op: BinaryOpType,
@@ -289,55 +299,24 @@ pub enum Statement {
     Scope(ScopeStatement),
 }
 
-// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-// pub struct ImportStatement {
-//     pub val: Vec<ObjectData>,
-//     pub src: ObjectIdent,
-// }
-//
-
-
-// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-// pub enum ExportStatement {
-//     ObjectExport(ExportObject),
-//     ObjectIdentExport(ExportObjectIdent)
-// }
-
-
-// #[allow(unused)]
-// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-// pub struct ExportObject{
-//     pub val: ObjectData,
-//     pub src: ObjectIdent
-// }
-
-
-// #[allow(unused)]
-// #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-// pub struct ExportObjectIdent{
-//     pub src: ObjectIdent,
-//     pub val: Vec<ObjectIdent>
-// }
 
 
 
 
 
-
-#[allow(unused)]
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct  ScopyModule{
     pub name: ObjectIdent,
     pub statements: Vec<Statement>,
 }
-#[allow(unused)]
+
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 
 pub struct ScopyProject{
     pub modules: Vec<ScopyModule>,
 }
 
-#[allow(unused)]
+
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct LoopStatement {
     pub cond: ObjectDataValue,
@@ -345,7 +324,7 @@ pub struct LoopStatement {
 }
 
 
-#[allow(unused)]
+
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct ConditionStatement {
     pub cond: ObjectDataValue,
@@ -353,19 +332,20 @@ pub struct ConditionStatement {
     pub true_scope: Box<ScopeStatement>
 }
 
-#[allow(unused)]
+
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct ScopeStatement {
     pub statements: Vec<Statement>
 }
 
 
-
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub enum CodeModuleSourceFileType{
     Internal,
     External,
 }
 
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct CodeModuleMetaData{
     pub code: String,
     pub name: ObjectIdent,

@@ -17,11 +17,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4386c28e-17c1-4885-b523-41eee5291a4d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/build_in_modules/default.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/include_build_in_modules.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.rs" beforeDir="false" afterPath="$PROJECT_DIR$/build.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/runner/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/runner/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/byte_maker.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/byte_maker.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/low_ir.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/low_ir.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/scopy_ir.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/scopy_ir.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/semantic.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/semantic.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/unit_tests.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/unit_tests.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/wasm_unit_tests.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/wasm_unit_tests.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -29,7 +35,7 @@
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:dev" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:test" />
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
@@ -56,7 +62,7 @@
     <option name="directoryName" value="OuPLdmCg" />
   </component>
   <component name="ProblemsViewState">
-    <option name="selectedTabId" value="ProjectErrors" />
+    <option name="selectedTabId" value="CurrentFile" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2,
@@ -67,58 +73,49 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Cargo.Run scopy.executor&quot;: &quot;Run&quot;,
-    &quot;Cargo.Test unit_tests::parse_expr_tests::parse_member_expr_func_call.executor&quot;: &quot;Debug&quot;,
-    &quot;Cargo.Test unit_tests::parse_expr_tests::parse_member_expr_nested_calls.executor&quot;: &quot;Debug&quot;,
-    &quot;Cargo.Test unit_tests::parse_expr_tests::parse_object_lit_spread_obj_test.executor&quot;: &quot;Debug&quot;,
-    &quot;Cargo.Test unit_tests::parse_expr_tests::parse_object_lit_spread_test.executor&quot;: &quot;Debug&quot;,
-    &quot;Cargo.Test unit_tests::parse_expr_tests::test_call_function_directly_panic.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.default.js_ir.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.ir.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.main.js_ir.html.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
-    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
-    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;actions.on.save&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Cargo.Run scopy.executor": "Run",
+    "Cargo.Test unit_tests::parse_expr_tests::parse_member_expr_func_call.executor": "Debug",
+    "Cargo.Test unit_tests::parse_expr_tests::parse_member_expr_nested_calls.executor": "Debug",
+    "Cargo.Test unit_tests::parse_expr_tests::parse_object_lit_spread_obj_test.executor": "Debug",
+    "Cargo.Test unit_tests::parse_expr_tests::parse_object_lit_spread_test.executor": "Debug",
+    "Cargo.Test unit_tests::parse_expr_tests::test_call_function_directly_panic.executor": "Run",
+    "Cargo.Test unit_tests::parse_import_export::test_parse_module_item_import_success.executor": "Debug",
+    "Cargo.Test wasm_unit_tests::validate_byte_code_tests::dump_pipeline_memory.executor": "Debug",
+    "JavaScript Debug.default.js_ir.html.executor": "Run",
+    "JavaScript Debug.ir.html.executor": "Run",
+    "JavaScript Debug.main.js_ir.html.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.rust.reset.selective.auto.import": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "master",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
+    "org.rust.first.attach.projects": "true",
+    "settings.editor.selected.configurable": "actions.on.save",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
-  <component name="RunManager" selected="Cargo.Run scopy">
+}]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/build_in_modules" />
+      <recent name="$PROJECT_DIR$/src" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Cargo.Test wasm_unit_tests::validate_byte_code_tests::dump_pipeline_memory">
     <configuration name="Run scopy" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package scopy --bin scopy" />
-      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-      <envs />
-      <option name="emulateTerminal" value="true" />
-      <option name="channel" value="DEFAULT" />
-      <option name="requiredFeatures" value="true" />
-      <option name="allFeatures" value="false" />
-      <option name="withSudo" value="false" />
-      <option name="buildTarget" value="REMOTE" />
-      <option name="backtrace" value="SHORT" />
-      <option name="isRedirectInput" value="false" />
-      <option name="redirectInputPath" value="" />
-      <method v="2">
-        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="Test unit_tests::parse_expr_tests::parse_member_expr_nested_calls" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
-      <option name="command" value="test --package scopy --bin scopy -- unit_tests::parse_expr_tests::parse_member_expr_nested_calls --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <envs />
       <option name="emulateTerminal" value="true" />
@@ -152,19 +149,51 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration name="ir.html" type="JavascriptDebugType" temporary="true" nameIsGenerated="true" uri="http://localhost:63342/scopy-platform/ir_output/ir.html" useBuiltInWebServerPort="true">
-      <method v="2" />
+    <configuration name="Test unit_tests::parse_import_export::test_parse_module_item_import_success" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="buildProfileId" value="test" />
+      <option name="command" value="test --package scopy --bin scopy -- unit_tests::parse_import_export::test_parse_module_item_import_success --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test wasm_unit_tests::validate_byte_code_tests::dump_pipeline_memory" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package scopy --bin scopy -- wasm_unit_tests::validate_byte_code_tests::dump_pipeline_memory --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
     </configuration>
     <configuration name="main.js_ir.html" type="JavascriptDebugType" temporary="true" nameIsGenerated="true" uri="http://localhost:63342/scopy-platform/ir_output/main.js_ir.html" useBuiltInWebServerPort="true">
       <method v="2" />
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Cargo.Test wasm_unit_tests::validate_byte_code_tests::dump_pipeline_memory" />
+        <item itemvalue="Cargo.Test unit_tests::parse_import_export::test_parse_module_item_import_success" />
         <item itemvalue="Cargo.Run scopy" />
         <item itemvalue="Cargo.Test unit_tests::parse_expr_tests::test_call_function_directly_panic" />
         <item itemvalue="JavaScript Debug.main.js_ir.html" />
-        <item itemvalue="JavaScript Debug.ir.html" />
-        <item itemvalue="Cargo.Test unit_tests::parse_expr_tests::parse_member_expr_nested_calls" />
       </list>
     </recent_temporary>
   </component>
@@ -249,7 +278,9 @@
       <workItem from="1790018949313" duration="4478000" />
       <workItem from="1790049490957" duration="7220000" />
       <workItem from="1790099578818" duration="9316000" />
-      <workItem from="1790184603975" duration="4904000" />
+      <workItem from="1790184603975" duration="8368000" />
+      <workItem from="1790193590216" duration="6619000" />
+      <workItem from="1790255243491" duration="33947000" />
     </task>
     <servers />
   </component>

@@ -1,6 +1,3 @@
-use core::{panic};
-use std::fs;
-use std::path::{PathBuf};
 use std::rc::Rc;
 use swc_common::{SourceFile, Span, Spanned};
 use swc_common::{sync::Lrc, SourceMap, FileName};
@@ -10,11 +7,14 @@ use swc_ecma_ast::*;
 use swc_common::comments::{CommentKind, Comments, SingleThreadedComments};
 use std::collections::{HashSet};
 use swc_common::comments::Comment;
-use walkdir::{DirEntry, WalkDir};
 use std::collections::HashMap;
-use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, AstCurrentContext, AstGlobalContext, Attribute, BinaryObjectValue, BinaryOpType, CodeModuleMetaData, CodeModuleSourceFileType, ConditionStatement, CurrentContext, CurrentContextType, FunctionCallResultValue, FunctionValue, GlobalContext, LitValueBool, LitValueNum, LitValueString, LiteralValue, LoopStatement, ModuleContext, ObjectData, ObjectDataValue, ObjectIdent, ObjectValue, ScopyModule, Statement, ScopeStatement, ScopyProject};
-use crate::semantic::ObjectDataValue::Object;
-
+use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, AstCurrentContext, AstGlobalContext,
+                      Attribute, BinaryObjectValue, BinaryOpType, CodeModuleMetaData, CodeModuleSourceFileType,
+                      ConditionStatement, CurrentContext, CurrentContextType, FunctionCallResultValue, FunctionValue,
+                      GlobalContext, LitValueBool, LitValueNum, LitValueString, LiteralValue, LoopStatement, ModuleContext, ObjectData,
+                      ObjectDataValue, ObjectIdent, ObjectValue, ScopyModule, Statement, ScopeStatement,
+                      ScopyProject, ImportDataValue, ExportDataValue};
+use crate::include_build_in_modules::builtin_modules;
 
 macro_rules! compiler_panic {
     ($reason:expr) => {{
@@ -23,72 +23,6 @@ macro_rules! compiler_panic {
         std::panic::panic_any(reason);
     }};
 }
-pub fn default_module_meta() -> CodeModuleMetaData{
-
-    CodeModuleMetaData{
-        code:  r#"
-            const string = {};
-
-            const bool = {};
-
-            const number = {};
-
-            const generic = {};
-
-            export {string, bool, number, generic};
-        "#.to_string(),
-        name:"default.js".to_string(),
-        module_meta_type: CodeModuleSourceFileType::Internal,
-    }
-}
-
-
-
-pub fn test_module_meta() -> CodeModuleMetaData{
-    CodeModuleMetaData{
-        code:  r#"
-            // import {string, bool, number, generic} from "default.js";
-
-            const va0 = {
-                va1 = {
-                    va2 = "test"
-                }
-            };
-
-
-            const va1 = {
-                va21={
-                    va31= null,
-                },
-                va22={
-                    va31={
-                        va41= null,
-                        va42="test",
-                        va43=false,
-                        va45=123,
-                        va46=va0.va1.va2
-                    }
-                }
-            };
-
-
-            va1.va22.va31
-            // va1.va21.va31().va41
-
-            // if (va1 == null) {
-            //    while (true) {}
-            //    const newFunct = (result=null) => {
-            //       while (true) {
-            //       }
-            //    }
-            // }
-
-        "#.to_string(),
-        name: "main.js".to_string(),
-        module_meta_type: CodeModuleSourceFileType::Internal,
-    }
-}
-
 
 
 
@@ -130,6 +64,8 @@ pub fn get_ast_from_src(meta: &CodeModuleMetaData, glob_ast_ctx: &AstGlobalConte
 
     let module = parser.parse_module().expect("failed to parse");
 
+
+
     AstCurrentContext{
         module: module,
         name: module_name
@@ -137,10 +73,8 @@ pub fn get_ast_from_src(meta: &CodeModuleMetaData, glob_ast_ctx: &AstGlobalConte
 }
 
 
-pub fn get_ctxs(ast_global_context: &AstGlobalContext) -> Vec<AstCurrentContext>{
-    let internal = collect_internal_modules(ast_global_context);
-    let external = collect_js_files(ast_global_context);
-    let ctxs = [internal, external].concat();
+pub fn get_ctxs(ast_global_context: &AstGlobalContext, module_to_compile: Vec<CodeModuleMetaData>) -> Vec<AstCurrentContext>{
+    let ctxs = module_to_compile.into_iter().map(|meta| get_ast_from_src(&meta, ast_global_context)).collect();
 
     let module_parse_queue = reorder_modules_to_parse(&ctxs);
 
@@ -150,7 +84,7 @@ pub fn get_ctxs(ast_global_context: &AstGlobalContext) -> Vec<AstCurrentContext>
         let ctx = ctxs.iter().find(|ctx_i| ctx_i.name == module_name);
 
         match ctx{
-            None => panic!("There is no module {:?} while trying iter from reorder", module_name),
+            None => compiler_panic!(ModuleDeclPanic::ModuleNotFound),
             Some(ctx) => vec_res.push(ctx.clone())
         }
 
@@ -158,113 +92,11 @@ pub fn get_ctxs(ast_global_context: &AstGlobalContext) -> Vec<AstCurrentContext>
     vec_res
 }
 
-pub fn is_ignored(entry: &DirEntry) -> bool {
-    let ignored_dirs = [
-        "target",
-        "node_modules",
-        ".git",
-        "ir_output"
-    ];
-
-    entry.path()
-        .components()
-        .any(|c| {
-            let name = c.as_os_str().to_str();
-
-            ignored_dirs.contains(&name.unwrap_or(""))
-        })
-}
-
-
-
-pub fn collect_internal_modules(ast_global_context: &AstGlobalContext) -> Vec<AstCurrentContext>{
-    let internal_modules = vec![test_module_meta(), default_module_meta()];
-    internal_modules.into_iter().map(|meta| get_ast_from_src(&meta, ast_global_context)).collect()
-}
-
-pub fn collect_js_files(ast_global_context: &AstGlobalContext) -> Vec<AstCurrentContext> {
-    let cur_dir = std::env::current_dir();
-
-    let res = match cur_dir {
-        Ok(cwd) => {
-            let res = WalkDir::new(&cwd)
-                .into_iter()
-                .filter_entry(|e| !is_ignored(e))
-                .filter_map(Result::ok)
-                .filter(|entry| entry.path().is_file())
-                .filter(|entry| {
-                    entry.path()
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        == Some("js")
-                })
-                .map(|entry| {
-
-                    let path_result = entry
-                        .path()
-                        .strip_prefix(&cwd.as_path());
-
-
-                    match path_result {
-                        Ok(entry) => entry.to_path_buf(),
-                        Err(err) => panic!("Error while trying parse path {}", err)
-                    }
-                })
-                .map(|f| {
-
-
-                    fn read_path_buf(f: &PathBuf) -> String {
-                        let read_result = fs::read_to_string(&f);
-                        let file_content = match read_result {
-                            Ok(result) => result,
-                            Err(err) => {
-                                panic!("Error while fetching {:}", err)
-                            }
-                        };
-                        file_content
-                    }
-
-                    fn get_file_name(f: &PathBuf) -> String {
-                        let read_file_name = f.file_name();
-                        match read_file_name {
-                            None => {
-                                panic!("Error while trying reading file name")
-                            }
-                            Some(file_name) => {
-                                match file_name.to_str() {
-                                    None => {
-                                        panic!("Error while trying reading file name and trying to str it")
-                                    }
-                                    Some(file_name) => {
-                                        file_name.replace(['/', '\\'], "_")
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-
-                    CodeModuleMetaData{
-                        module_meta_type: CodeModuleSourceFileType::External,
-                        code: read_path_buf(&f),
-                        name: get_file_name(&f),
-                    }
-                })
-                .map(|f| get_ast_from_src(&f, ast_global_context))
-                .collect();
-            res
-        }
-        Err(err) => panic!("Could not get current directory. {:?}", err),
-    };
-
-    res
-
-}
 
 
 
 
-pub fn parse_modules() -> ScopyProject{
+pub fn parse_modules(modules_to_compile: Vec<CodeModuleMetaData>) -> ScopyProject{
 
 
     let mut global_ast_context = AstGlobalContext{
@@ -272,7 +104,8 @@ pub fn parse_modules() -> ScopyProject{
         comments: SingleThreadedComments::default(),
         cm: Default::default(),
     };
-    let ctxs = get_ctxs(&global_ast_context);
+    let modules_to_compile = [builtin_modules(), modules_to_compile].concat();
+    let ctxs = get_ctxs(&global_ast_context, modules_to_compile);
 
     let mut glob_ctx = GlobalContext{
         parsed_modules: HashMap::new(),
@@ -372,6 +205,8 @@ pub fn reorder_modules_to_parse(ctxs: &Vec<AstCurrentContext>) -> Vec<ObjectIden
 pub fn module_parse(ast_current_context: &AstCurrentContext, ast_global_context: &AstGlobalContext, glob_ctx: &GlobalContext) -> ScopyModule{
     let mut ctx_statements: Vec<Statement> = Vec::new();
 
+
+
     let module_stmts = ast_current_context.module.body.iter().map(|el| {
         let context = CurrentContext{
             context_type: CurrentContextType::ModuleContext(ModuleContext  {
@@ -385,6 +220,11 @@ pub fn module_parse(ast_current_context: &AstCurrentContext, ast_global_context:
         ctx_statements.push(res_el.clone());
         res_el
     }).collect::<Vec<_>>();
+
+
+
+
+
     ScopyModule { name: ast_current_context.name.clone(), statements: module_stmts }
 }
 
@@ -395,8 +235,8 @@ pub fn module_parse(ast_current_context: &AstCurrentContext, ast_global_context:
 pub fn parse_module_item(el: &ModuleItem, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Statement {
     let res_el = match el {
         ModuleItem::ModuleDecl(module_decl) => {
-            let import_stmt = parse_module_decl(module_decl, ctx, glob_ctx, ast_global_context);
-            import_stmt
+            let import_stmt = parse_module_decl(module_decl, ctx, glob_ctx);
+            Statement::Object(import_stmt)
         },
         ModuleItem::Stmt(stmt) => {
             let p_stmt = parse_stmt(stmt, ctx, glob_ctx, ast_global_context);
@@ -454,12 +294,8 @@ pub fn import_module_decl_module_import_map(module_decl: &ModuleDecl) -> Option<
 
 pub fn parse_export_specifier(spec: &ExportSpecifier) -> ObjectIdent{
     match spec {
-        ExportSpecifier::Namespace(_) => {
-            panic!("Namespace export not supported");
-        }
-        ExportSpecifier::Default(_) => {
-            panic!("Default export not supported");
-        }
+        ExportSpecifier::Namespace(_) => compiler_panic!(ModuleDeclPanic::NameSpaceExportNotAllowed),
+        ExportSpecifier::Default(_) => compiler_panic!(ModuleDeclPanic::DefaultExportNotAllowed),
         ExportSpecifier::Named(named_spec) => {
             parse_export_named_specifier(named_spec)
         }
@@ -494,26 +330,20 @@ pub fn parse_export_module_name(spec_name: &ModuleExportName) ->ObjectIdent
 }
 
 
-pub fn parse_module_decl(module_decl: &ModuleDecl, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Statement{
+pub fn parse_module_decl(module_decl: &ModuleDecl, ctx: &CurrentContext, glob_ctx: &GlobalContext) -> ObjectData{
     let stmt = match module_decl{
         ModuleDecl::Import(import_decl) => {
             let src = get_import_decl_module_name(import_decl);
             let imports = parse_import_decl(import_decl, glob_ctx);
 
-            Statement::Object(ObjectData{
+            ObjectData{
                 is_mutable: false,
                 name: src,
                 attrs: vec![],
-                value: ObjectDataValue::Object(ObjectValue{
-                    props: imports,
-                }),
-            })
-        },
-        ModuleDecl::ExportDecl(export_decl) => {
-            let obj_data = parse_export_decl(export_decl, ctx, glob_ctx, ast_global_context);
-            Statement::Object(
-                obj_data
-            )
+                value: ObjectDataValue::Import(ImportDataValue{
+                    imports: imports
+                })
+            }
         },
         ModuleDecl::ExportNamed(named_export) => {
             if named_export.src != None
@@ -521,24 +351,22 @@ pub fn parse_module_decl(module_decl: &ModuleDecl, ctx: &CurrentContext, glob_ct
                 compiler_panic!(ModuleDeclPanic::NotAllowedExport)
             }
 
-            let props = named_export.specifiers.iter().map(|spec| {
-                let parse_spec = parse_export_specifier(spec);
-                parse_spec as ObjectIdent
-            }).map(|obj_id| {
-                *find_in_context(ctx, obj_id, glob_ctx).obj
+            let imports = named_export.specifiers.iter().map(parse_export_specifier).map(|obj_id| {
+                find_in_context(ctx, obj_id, glob_ctx)
             }).collect::<Vec<_>>();
 
 
 
-            Statement::Object(ObjectData{
-                value: Object(ObjectValue{
-                    props: props
+            ObjectData{
+                value: ObjectDataValue::Export(ExportDataValue{
+                    exports: imports
                 }),
                 attrs: vec![],
                 is_mutable: false,
-                name: ctx.current_module_name.clone()
-            })
+                name: ctx.current_module_name.clone(),
+            }
         },
+        ModuleDecl::ExportDecl(_) => compiler_panic!(ModuleDeclPanic::NotNamedExport),
         ModuleDecl::ExportDefaultDecl(_) => compiler_panic!(ModuleDeclPanic::DefaultExportNotAllowed),
         ModuleDecl::ExportDefaultExpr(_) => compiler_panic!(ModuleDeclPanic::DefaultExportNotAllowed),
         ModuleDecl::ExportAll(_) => compiler_panic!(ModuleDeclPanic::ExportAllNotAllowed),
@@ -555,32 +383,35 @@ pub fn parse_module_decl(module_decl: &ModuleDecl, ctx: &CurrentContext, glob_ct
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ModuleDeclPanic {
     DefaultExportNotAllowed,
+
+    ModuleNotFound,
+    DefaultImportNotAllowed,
+    NotNamedImportNotAllowed,
     ExportAllNotAllowed,
     TsImportEqualsNotAllowed,
     TsExportAssignmentNotAllowed,
     TsNamespaceExportNotAllowed,
     NotAllowedExport,
-    // DefaultSpecifiersNotAllowed,
-    ClassExportNotAllowed,
-    UsingExportNotAllowed,
-    FnExportNotAllowed,
-    TsNotAllowed, // общий для любых TS-конструкций в экспорте
+    NotNamedExport,
+    StrExportNotAllowed,
+    NameSpaceExportNotAllowed,
 }
 
 impl std::fmt::Display for ModuleDeclPanic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DefaultExportNotAllowed => write!(f, "Default export is not allowed"),
-            Self::ExportAllNotAllowed => write!(f, "Export all from another module is not allowed"),
-            Self::TsImportEqualsNotAllowed => write!(f, "TypeScript import equals is not allowed"),
-            Self::TsExportAssignmentNotAllowed => write!(f, "TypeScript export assignment is not allowed"),
-            Self::TsNamespaceExportNotAllowed => write!(f, "TypeScript namespace export is not allowed"),
-            Self::NotAllowedExport => write!(f, "From while export not allowed"),
-            // Self::DefaultSpecifiersNotAllowed => write!(f, "Default specifiers is not allowed"),
-            Self::ClassExportNotAllowed => write!(f, "Exporting class declaration is not allowed"),
-            Self::UsingExportNotAllowed => write!(f, "Exporting using declaration is not allowed"),
-            Self::FnExportNotAllowed => write!(f, "Exporting function declaration is not allowed; use arrow functions instead"),
-            Self::TsNotAllowed => write!(f, "TypeScript syntax is not allowed"),
+            ModuleDeclPanic::DefaultExportNotAllowed => write!(f, "Default export is not allowed"),
+            ModuleDeclPanic::ExportAllNotAllowed => write!(f, "Export all from another module is not allowed"),
+            ModuleDeclPanic::TsImportEqualsNotAllowed => write!(f, "TypeScript import equals is not allowed"),
+            ModuleDeclPanic::TsExportAssignmentNotAllowed => write!(f, "TypeScript export assignment is not allowed"),
+            ModuleDeclPanic::TsNamespaceExportNotAllowed => write!(f, "TypeScript namespace export is not allowed"),
+            ModuleDeclPanic::NotAllowedExport => write!(f, "From while export not allowed"),
+            ModuleDeclPanic::NotNamedExport => write!(f, "NOt named export not allowed"),
+            ModuleDeclPanic::DefaultImportNotAllowed => write!(f, "Default import not allowed"),
+            ModuleDeclPanic::NotNamedImportNotAllowed => write!(f, "Not named import not allowed"),
+            ModuleDeclPanic::StrExportNotAllowed => write!(f, "Str export not allowed"),
+            ModuleDeclPanic::ModuleNotFound => write!(f, "Module not found"),
+            ModuleDeclPanic::NameSpaceExportNotAllowed => write!(f, "Namespace export not supported")
         }
     }
 }
@@ -591,19 +422,6 @@ impl std::fmt::Display for ModuleDeclPanic {
 
 
 
-
-pub fn parse_export_decl(export_decl: &ExportDecl, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ObjectData {
-    match &export_decl.decl {
-        Decl::Var(var_decl) => parse_decl(var_decl, ctx, glob_ctx, ast_global_context),
-        Decl::Class(_) => compiler_panic!(ModuleDeclPanic::ClassExportNotAllowed),
-        Decl::Using(_) => compiler_panic!(ModuleDeclPanic::UsingExportNotAllowed),
-        Decl::Fn(_) => compiler_panic!(ModuleDeclPanic::FnExportNotAllowed),
-        Decl::TsInterface(_) => compiler_panic!(ModuleDeclPanic::TsNotAllowed),
-        Decl::TsTypeAlias(_) => compiler_panic!(ModuleDeclPanic::TsNotAllowed),
-        Decl::TsEnum(_) => compiler_panic!(ModuleDeclPanic::TsNotAllowed),
-        Decl::TsModule(_) => compiler_panic!(ModuleDeclPanic::TsNotAllowed),
-    }
-}
 
 
 
@@ -625,66 +443,10 @@ pub fn create_context_in_global_context(global_ctx: &GlobalContext, module_name:
         }
     });
 
-    if res.is_none(){
-        panic!("Module not found {:?}", module_name);
-    }
-    else {
-        res.unwrap()
-    }
+    res.unwrap_or_else(|| compiler_panic!(ModuleDeclPanic::ModuleNotFound))
 }
 
 
-
-
-
-pub fn create_object_from_exports(ctx: &CurrentContext, import_name: &ObjectIdent) -> ObjectData {
-
-    let props = ctx.current_statements.iter().filter_map(|stmt|{
-        if let Statement::Object(export_obj) = stmt{
-            Some(export_obj.clone())
-        }
-        else { None }
-    }).collect::<Vec<_>>();
-
-    ObjectData {
-        value: ObjectDataValue::Object(ObjectValue{
-            props: props,
-        }),
-        attrs: vec![],
-        is_mutable: false,
-        name: import_name.clone(),
-    }
-}
-
-
-// pub fn create_objects_from_export(export: &ObjectData, ctx: &CurrentContext, glob_ctx: &GlobalContext) -> Vec<ObjectData>{
-//     let val = match export {
-//         ExportStatement::ObjectExport(exp_obj) => {
-//             let val = exp_obj.val.clone();
-//             vec![val]
-//         }
-//         ExportStatement::ObjectIdentExport(ident_export) => {
-//             let props = ident_exports_to_objs(ident_export.val.clone(), ctx, glob_ctx);
-//             props
-//         }
-//     };
-//     val
-// }
-
-
-// pub fn ident_exports_to_objs(ident_exports: Vec<ObjectIdent>, ctx: &CurrentContext, glob_ctx: &GlobalContext) -> Vec<ObjectData>{
-//     let objs = ident_exports.iter().map(|export_obj| {
-//         let obj_val = find_in_context(ctx, export_obj.clone(), glob_ctx);
-//         let obj = ObjectData {
-//             is_mutable: false,
-//             name: export_obj.clone(),
-//             attrs: vec![],
-//             value: ObjectDataValue::AnotherObject(obj_val)
-//         };
-//         obj
-//     }).collect::<Vec<_>>();
-//     objs
-// }
 
 
 
@@ -696,19 +458,13 @@ pub fn get_import_decl_module_name(import_decl: &ImportDecl) -> ObjectIdent{
 
 
 
-pub fn parse_import_decl(import_decl: &ImportDecl, glob_ctx: &GlobalContext) -> Vec<ObjectData>{
+pub fn parse_import_decl(import_decl: &ImportDecl, glob_ctx: &GlobalContext) -> Vec<AnotherObjectValue>{
     let imports = import_decl.specifiers.iter().map(parse_import_specifier)
-        .map(|(name, is_named)| {
+        .map(|name| {
             let import_name = get_import_decl_module_name(&import_decl);
             let module_context = create_context_in_global_context(glob_ctx, &import_name);
-            if is_named {
-                let another_obj_res = find_in_context(&module_context, name.clone(), glob_ctx);
-                *another_obj_res.obj
-            }
-            else {
-                let obj_d = create_object_from_exports(&module_context, &import_name);
-                obj_d
-            }
+            let export_obj = find_in_context(&module_context, name.clone(), glob_ctx);
+            export_obj
         }).collect::<Vec<_>>();
     imports
 }
@@ -716,27 +472,15 @@ pub fn parse_import_decl(import_decl: &ImportDecl, glob_ctx: &GlobalContext) -> 
 
 
 
-pub fn parse_import_specifier(s: &ImportSpecifier) -> (ObjectIdent, bool){
+
+
+
+pub fn parse_import_specifier(s: &ImportSpecifier) -> ObjectIdent{
     match s {
-        ImportSpecifier::Named(import_named_specifier) => {
-            let name = parse_named_specifier(import_named_specifier);
-            (name, true)
-        },
-        ImportSpecifier::Default(import_default_specifier) => {
-            // let name = parse_default_specifier(import_default_specifier);
-            // name
-            panic!("Dont use default specifier {:?}", import_default_specifier);
-        },
-        ImportSpecifier::Namespace(import_start_specifier) => {
-            let name = parse_import_start_specifier(import_start_specifier);
-            (name, false)
-        },
+        ImportSpecifier::Named(import_named_specifier) => parse_named_specifier(import_named_specifier),
+        ImportSpecifier::Default(_) => compiler_panic!(ModuleDeclPanic::DefaultImportNotAllowed),
+        ImportSpecifier::Namespace(_) => compiler_panic!(ModuleDeclPanic::NotNamedImportNotAllowed),
     }
-}
-
-
-pub fn parse_import_start_specifier(import_default_specifier: &ImportStarAsSpecifier) -> ObjectIdent {
-    parse_ident(&import_default_specifier.local)
 }
 
 
@@ -756,10 +500,14 @@ pub fn parse_named_specifier(import_named_specifier: &ImportNamedSpecifier) -> O
 pub fn parse_module_export_name(imported: &ModuleExportName) -> ObjectIdent{
     let name = match imported{
         ModuleExportName::Ident(ident) => parse_ident(&ident),
-        ModuleExportName::Str(_) => panic!("str export not allowed"),
+        ModuleExportName::Str(_) => compiler_panic!(ModuleDeclPanic::StrExportNotAllowed),
     };
     name
 }
+
+
+
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum StmtPanic {
     EmptyStatementNotAllowed,
@@ -928,8 +676,8 @@ pub fn parse_decl(var_decl: &VarDecl, ctx: &CurrentContext, glob_ctx: &GlobalCon
     ObjectData {
         attrs: get_attributes(&decl.span, ast_global_context),
         is_mutable: false, // пока всегда false
-        name,
-        value: val,
+        name:name,
+        value: val
     }
 }
 
@@ -1118,62 +866,14 @@ pub fn check_obj_data(object_data: &ObjectData, name: &ObjectIdent) -> Option<Ob
     if object_data.name == *name{
         Some(object_data.clone())
     }
+    else if let ObjectDataValue::Import(import) = object_data.value.clone() {
+        import.imports.iter().find(|import| import.obj.name == name.clone()).map(|import| *import.obj.clone())
+    }
+    else if let ObjectDataValue::Export(import) = object_data.value.clone() {
+        import.exports.iter().find(|export| export.obj.name == name.clone()).map(|export| *export.obj.clone())
+    }
     else { None }
 }
-
-// pub fn find_obj_from_import(import: &ImportStatement, name: &ObjectIdent) -> Option<ObjectData>{
-//     let f_obj = import.val.iter().find(|val| {val.name == *name}).cloned();
-//     f_obj
-// }
-
-// pub fn check_export_obj(obj_exp: &ExportObject, name: &ObjectIdent) -> Option<ObjectData>{
-//     if obj_exp.val.name == *name{
-//         Some(obj_exp.val.clone())
-//     }
-//     else { None }
-// }
-
-
-
-// pub fn find_in_scopy_module(module: &ScopyModule, name: &ObjectIdent, glob_ctx: &GlobalContext, ctx: &CurrentContext) -> Option<ObjectData> {
-//     let find_result = module.statements.iter().find_map(|stmt| {
-//         let obj_data = find_in_statements(&stmt, ctx,  &name, glob_ctx);
-//         obj_data
-//     });
-//     find_result
-// }
-
-
-
-// pub fn find_global_ctx(name: &ObjectIdent, glob_ctx: &GlobalContext,  ctx: &CurrentContext) -> Option<ObjectData> {
-//     let obj_val_opt = glob_ctx
-//         .parsed_modules
-//         .iter()
-//         .find_map(|(module_name, module)| {
-//             if *module_name == ctx.current_module_name {
-//                 find_in_scopy_module(module, name, glob_ctx, ctx)
-//             }
-//             else { None }
-//         });
-//
-//     obj_val_opt
-// }
-
-
-// pub fn check_ident_export(ident_export: &ExportObjectIdent, name: &ObjectIdent, ctx: &CurrentContext,  glob_ctx: &GlobalContext) -> Option<ObjectData> {
-//     let d = ident_export.val.iter().find_map(|val| {
-//         if val == name {
-//             let obj_val_opt = find_global_ctx(name, &glob_ctx, ctx);
-//             obj_val_opt
-//         }
-//         else {
-//             None
-//         }
-//
-//     });
-//     d
-// }
-
 
 pub fn find_in_statements(stmt: &Statement, _: &CurrentContext, name: &ObjectIdent, _: &GlobalContext) -> Option<ObjectData>{
     match stmt {
@@ -1184,19 +884,6 @@ pub fn find_in_statements(stmt: &Statement, _: &CurrentContext, name: &ObjectIde
         Statement::Conditional(_) => None,
         Statement::Loop(_) => None,
         Statement::Scope(_) => None,
-        // Statement::Import(import) => {
-        //     find_obj_from_import(import, name)
-        // }
-        // Statement::Export(export) => {
-        //     match export {
-        //         ExportStatement::ObjectExport (obj_exp) => {
-        //             check_export_obj(obj_exp, name)
-        //         },
-        //         ExportStatement:: ObjectIdentExport(ident_export) => {
-        //             check_ident_export(ident_export, name, ctx, glob_ctx)
-        //         }
-        //     }
-        // }
     }
 }
 
@@ -1223,6 +910,7 @@ pub enum ExprPanic {
     GetterPropNotAllowed,
     SetterPropNotAllowed,
     MethodPropNotAllowed,
+    SpreadNotAllowed,
     BinaryOperationNotSupported,
     PrivateNamePropNotAllowed,
     ComputedPropNotAllowed,
@@ -1233,6 +921,8 @@ pub enum ExprPanic {
     LiteralValueNotFunction,
     NestedFunctionCallNotAllowed,
     BinaryValueNotFunction,
+    ImportNotFunction,
+    ExportNotFunction,
     BigIntLiteralNotAllowed,
     RegexLiteralNotAllowed,
     IdentPatternNotSupported,
@@ -1246,11 +936,6 @@ pub enum ExprPanic {
     ResultNotFoundInParams,
     InvalidMemberExpressionMemberNotFound,
     ObjectNotFoundByName,
-    EnumValueCannotBeSpread,
-    ObjectValueCannotBeSpread,
-    LiteralValueCannotBeSpread,
-    FunctionValueCannotBeSpread,
-    BinaryValueCannotBeSpread,
     KeyValuePropNotSupported,
     NotAnotherObjectValueBeforeFunctionCall,
     NotFunctionCallAfterAnotherObjectValue,
@@ -1259,57 +944,55 @@ pub enum ExprPanic {
 impl std::fmt::Display for ExprPanic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::KeyValuePropNotSupported => write!(f, "Key value property not supported"),
-            Self::ThisNotAllowed => write!(f, "this not allowed"),
-            Self::ArrayNotAllowed => write!(f, "array not allowed"),
-            Self::FnNotAllowed => write!(f, "fn not allowed"),
-            Self::UnaryExpressionNotAllowed => write!(f, "unary expression not allowed"),
-            Self::UpdateExpressionNotAllowed => write!(f, "update expression not allowed"),
-            Self::AssignExpressionNotAllowed => write!(f, "assign expression not allowed"),
-            Self::SuperPropNotAllowed => write!(f, "super prop not allowed"),
-            Self::CondExpressionNotAllowed => write!(f, "cond expression not allowed"),
-            Self::NewExpressionNotAllowed => write!(f, "new expression not allowed"),
-            Self::SeqExpressionNotAllowed => write!(f, "seq expression not allowed"),
-            Self::TsNotAllowed => write!(f, "ts not allowed"),
-            Self::YieldAllowed => write!(f, "yield allowed"),
-            Self::MetaPropertyNotAllowed => write!(f, "meta property not allowed"),
-            Self::AwaitNotAllowed => write!(f, "await not allowed"),
-            Self::ClassNotAllowed => write!(f, "class not allowed"),
-            Self::InvalidExpression => write!(f, "invalid expression"),
-            Self::ShorthandPropNotAllowed => write!(f, "Shorthand properties are not allowed"),
-            Self::GetterPropNotAllowed => write!(f, "Getter properties are not allowed"),
-            Self::SetterPropNotAllowed => write!(f, "Setter properties are not allowed"),
-            Self::MethodPropNotAllowed => write!(f, "Method properties are not allowed"),
-            Self::BinaryOperationNotSupported => write!(f, "Binary operation is not supported"),
-            Self::PrivateNamePropNotAllowed => write!(f, "Private name in properties is not allowed"),
-            Self::ComputedPropNotAllowed => write!(f, "Computed properties are not allowed"),
-            Self::SuperCalleeNotSupported => write!(f, "Super callee is not supported"),
-            Self::ImportCalleeNotSupported => write!(f, "Import is not supported as callee"),
-            Self::EnumValueNotFunction => write!(f, "Enum value is not a function"),
-            Self::ObjectValueNotFunction => write!(f, "Object value is not a function"),
-            Self::LiteralValueNotFunction => write!(f, "Literal value is not a function"),
-            Self::NestedFunctionCallNotAllowed => write!(f, "Nested function calls like foo_call()() are not allowed because they are hard to read"),
-            Self::BinaryValueNotFunction => write!(f, "Binary value is not a function"),
-            Self::BigIntLiteralNotAllowed => write!(f, "BigInt literals are not allowed"),
-            Self::RegexLiteralNotAllowed => write!(f, "Regular expression literals are not allowed"),
-            Self::IdentPatternNotSupported => write!(f, "Identifier patterns are not supported"),
-            Self::ArrayPatternNotSupported => write!(f, "Array patterns are not supported"),
-            Self::RestPatternNotSupported => write!(f, "Rest patterns are not supported"),
-            Self::ObjectPatternNotSupported => write!(f, "Object patterns are not supported"),
-            Self::InvalidPatternNotSupported => write!(f, "Invalid patterns are not supported"),
-            Self::ExpressionPatternNotSupported => write!(f, "Expression patterns are not supported"),
-            Self::AssignPatternNotSupported => write!(f, "Assign patterns are not supported"),
-            Self::ExpressionNotAllowedAsStatement => write!(f, "Expressions are not allowed as statements"),
-            Self::ResultNotFoundInParams => write!(f, "Cannot find result in params"),
-            Self::InvalidMemberExpressionMemberNotFound => write!(f, "Invalid member expression. Member not found."),
-            Self::ObjectNotFoundByName => write!(f, "Cannot find object with name"),
-            Self::EnumValueCannotBeSpread => write!(f, "Enum values cannot be spread"),
-            Self::ObjectValueCannotBeSpread => write!(f, "Object values cannot be spread"),
-            Self::LiteralValueCannotBeSpread => write!(f, "Literal values cannot be spread"),
-            Self::FunctionValueCannotBeSpread => write!(f, "Function values cannot be spread"),
-            Self::BinaryValueCannotBeSpread => write!(f, "Binary values cannot be spread"),
-            Self::NotAnotherObjectValueBeforeFunctionCall => write!(f, "Cannot call non-existent function"),
-            Self::NotFunctionCallAfterAnotherObjectValue => write!(f, "AnotherValue cannot be after AnotherValue after function call")
+            ExprPanic::KeyValuePropNotSupported => write!(f, "Key value property not supported"),
+            ExprPanic::ThisNotAllowed => write!(f, "this not allowed"),
+            ExprPanic::ArrayNotAllowed => write!(f, "array not allowed"),
+            ExprPanic::FnNotAllowed => write!(f, "fn not allowed"),
+            ExprPanic::UnaryExpressionNotAllowed => write!(f, "unary expression not allowed"),
+            ExprPanic::UpdateExpressionNotAllowed => write!(f, "update expression not allowed"),
+            ExprPanic::AssignExpressionNotAllowed => write!(f, "assign expression not allowed"),
+            ExprPanic::SuperPropNotAllowed => write!(f, "super prop not allowed"),
+            ExprPanic::CondExpressionNotAllowed => write!(f, "cond expression not allowed"),
+            ExprPanic::NewExpressionNotAllowed => write!(f, "new expression not allowed"),
+            ExprPanic::SeqExpressionNotAllowed => write!(f, "seq expression not allowed"),
+            ExprPanic::TsNotAllowed => write!(f, "ts not allowed"),
+            ExprPanic::YieldAllowed => write!(f, "yield allowed"),
+            ExprPanic::MetaPropertyNotAllowed => write!(f, "meta property not allowed"),
+            ExprPanic::AwaitNotAllowed => write!(f, "await not allowed"),
+            ExprPanic::ClassNotAllowed => write!(f, "class not allowed"),
+            ExprPanic::InvalidExpression => write!(f, "invalid expression"),
+            ExprPanic::ShorthandPropNotAllowed => write!(f, "Shorthand properties are not allowed"),
+            ExprPanic::GetterPropNotAllowed => write!(f, "Getter properties are not allowed"),
+            ExprPanic::SetterPropNotAllowed => write!(f, "Setter properties are not allowed"),
+            ExprPanic::MethodPropNotAllowed => write!(f, "Method properties are not allowed"),
+            ExprPanic::BinaryOperationNotSupported => write!(f, "Binary operation is not supported"),
+            ExprPanic::PrivateNamePropNotAllowed => write!(f, "Private name in properties is not allowed"),
+            ExprPanic::ComputedPropNotAllowed => write!(f, "Computed properties are not allowed"),
+            ExprPanic::SuperCalleeNotSupported => write!(f, "Super callee is not supported"),
+            ExprPanic::ImportCalleeNotSupported => write!(f, "Import is not supported as callee"),
+            ExprPanic::EnumValueNotFunction => write!(f, "Enum value is not a function"),
+            ExprPanic::SpreadNotAllowed => write!(f, "Spread is not allowed"),
+            ExprPanic::ObjectValueNotFunction => write!(f, "Object value is not a function"),
+            ExprPanic::LiteralValueNotFunction => write!(f, "Literal value is not a function"),
+            ExprPanic::NestedFunctionCallNotAllowed => write!(f, "Nested function calls like foo_call()() are not allowed because they are hard to read"),
+            ExprPanic::BinaryValueNotFunction => write!(f, "Binary value is not a function"),
+            ExprPanic::BigIntLiteralNotAllowed => write!(f, "BigInt literals are not allowed"),
+            ExprPanic::RegexLiteralNotAllowed => write!(f, "Regular expression literals are not allowed"),
+            ExprPanic::IdentPatternNotSupported => write!(f, "Identifier patterns are not supported"),
+            ExprPanic::ArrayPatternNotSupported => write!(f, "Array patterns are not supported"),
+            ExprPanic::RestPatternNotSupported => write!(f, "Rest patterns are not supported"),
+            ExprPanic::ObjectPatternNotSupported => write!(f, "Object patterns are not supported"),
+            ExprPanic::InvalidPatternNotSupported => write!(f, "Invalid patterns are not supported"),
+            ExprPanic::ExpressionPatternNotSupported => write!(f, "Expression patterns are not supported"),
+            ExprPanic::AssignPatternNotSupported => write!(f, "Assign patterns are not supported"),
+            ExprPanic::ExpressionNotAllowedAsStatement => write!(f, "Expressions are not allowed as statements"),
+            ExprPanic::ResultNotFoundInParams => write!(f, "Cannot find result in params"),
+            ExprPanic::InvalidMemberExpressionMemberNotFound => write!(f, "Invalid member expression. Member not found."),
+            ExprPanic::ObjectNotFoundByName => write!(f, "Cannot find object with name"),
+            ExprPanic::NotAnotherObjectValueBeforeFunctionCall => write!(f, "Cannot call non-existent function"),
+            ExprPanic::NotFunctionCallAfterAnotherObjectValue => write!(f, "AnotherValue cannot be after AnotherValue after function call"),
+            ExprPanic::ImportNotFunction => write!(f, "Export not a function"),
+            ExprPanic::ExportNotFunction => write!(f, "Import not a function"),
         }
     }
 }
@@ -1407,46 +1090,11 @@ pub fn parse_obj_lit(object_lit:&ObjectLit, ctx: &CurrentContext, glob_ctx: &Glo
 
 pub fn parse_prop_or_spread(p: &PropOrSpread, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Vec<ObjectData>{
     match p{
-        PropOrSpread::Spread(spread_element) => parse_spread_el(spread_element, ctx, glob_ctx, ast_global_context),
+        PropOrSpread::Spread(_) => compiler_panic!(ExprPanic::SpreadNotAllowed),
         PropOrSpread::Prop(prop) =>  vec![parse_prop(prop, ctx, glob_ctx, ast_global_context)] ,
     }
 }
 
-
-
-
-pub fn parse_spread_el(spread_element: &SpreadElement, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Vec<ObjectData>{
-    let val: ObjectDataValue = parse_expr(&spread_element.expr, ctx, glob_ctx, ast_global_context);
-
-    unpack_data_value_with_check(&val)
-}
-
-
-pub fn unpack_data_value_with_check(val: &ObjectDataValue) ->Vec<ObjectData>{
-    match val {
-        ObjectDataValue::AnotherObject(_) => unpack_data_value(val),
-        ObjectDataValue::FunctionCall(_) => unpack_data_value(val),
-        ObjectDataValue::Enum(_) => compiler_panic!(ExprPanic::EnumValueCannotBeSpread),
-        ObjectDataValue::Object(_) => compiler_panic!(ExprPanic::ObjectValueCannotBeSpread),
-        ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueCannotBeSpread),
-        ObjectDataValue::Function(_) => compiler_panic!(ExprPanic::FunctionValueCannotBeSpread),
-        ObjectDataValue::Binary(_) => compiler_panic!(ExprPanic::BinaryValueCannotBeSpread),
-    }
-}
-
-
-pub fn unpack_data_value(val: &ObjectDataValue) -> Vec<ObjectData>{
-    match val {
-        ObjectDataValue::Enum(enum_object_value) => enum_object_value.props.clone(),
-        ObjectDataValue::Object(object_value) => object_value.props.clone(),
-        ObjectDataValue::AnotherObject(another_object_value) =>
-            unpack_data_value(&another_object_value.obj.value),
-        ObjectDataValue::Literal(_) => Vec::new(),
-        ObjectDataValue::Function(_) => Vec::new(),
-        ObjectDataValue::FunctionCall(function_meta_data) => unpack_data_value(&function_meta_data.result),
-        ObjectDataValue::Binary(_) => Vec::new()
-    }
-}
 
 
 pub fn map_prop_obj_data(prop: Option<ObjectData>, member_name: &ObjectIdent) -> Option<AnotherObjectValue>{
@@ -1496,6 +1144,12 @@ pub fn another_obj_from_member(val: &ObjectDataValue, member_name: &ObjectIdent,
         ObjectDataValue::Literal(_) => None,
         ObjectDataValue::Function(_) => None,
         ObjectDataValue::Binary(_) => None,
+        ObjectDataValue::Import(import) => {
+            import.imports.iter().find_map(|m| another_obj_from_member(&m.obj.value, member_name, ctx))
+        }
+        ObjectDataValue::Export(export) => {
+            export.exports.iter().find_map(|m| another_obj_from_member(&m.obj.value, member_name, ctx))
+        }
     }
 }
 
@@ -1527,7 +1181,7 @@ pub fn parse_assign_prop(prop: &AssignProp, ctx: &CurrentContext, glob_ctx: &Glo
 
     let res = ObjectData {
         name: current_object_name,
-        value,
+        value:value,
         is_mutable: false,
         attrs: get_attributes(&prop.span(), ast_global_context)
     };
@@ -1759,6 +1413,9 @@ pub fn create_func_result(val_call: ObjectDataValue, args: Vec<ObjectDataValue>)
         ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueNotFunction),
         ObjectDataValue::FunctionCall(_) => compiler_panic!(ExprPanic::NestedFunctionCallNotAllowed),
         ObjectDataValue::Binary(_) => compiler_panic!(ExprPanic::BinaryValueNotFunction),
+
+        ObjectDataValue::Import(_) => compiler_panic!(ExprPanic::ImportNotFunction),
+        ObjectDataValue::Export(_) => compiler_panic!(ExprPanic::ExportNotFunction),
     };
     func_call
 }
@@ -1813,6 +1470,9 @@ pub fn func_call_result(another_val: &AnotherObjectValue, args: Vec<ObjectDataVa
         ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueNotFunction),
         ObjectDataValue::FunctionCall(_) => compiler_panic!(ExprPanic::NestedFunctionCallNotAllowed),
         ObjectDataValue::Binary(_) => compiler_panic!(ExprPanic::BinaryValueNotFunction),
+
+        ObjectDataValue::Import(_) => compiler_panic!(ExprPanic::ImportNotFunction),
+        ObjectDataValue::Export(_) => compiler_panic!(ExprPanic::ExportNotFunction),
     }
 }
 
@@ -1827,15 +1487,16 @@ pub fn parse_expr_or_spread(expr_or_spread: &ExprOrSpread, ctx: &CurrentContext,
     let is_spread = expr_or_spread.spread.is_some();
 
     if is_spread {
-        let val = unpack_data_value_with_check(&arg).iter().map(|v|{
-            ObjectDataValue::AnotherObject(
-                AnotherObjectValue{
-                    obj: Box::from(v.clone()),
-                    path: vec![AnotherObjectValuePath::Ident(v.name.clone())]
-                }
-            )
-        }).collect::<Vec<_>>();
-        val
+        // let val = unpack_data_value_with_check(&arg).iter().map(|v|{
+        //     ObjectDataValue::AnotherObject(
+        //         AnotherObjectValue{
+        //             obj: Box::from(v.clone()),
+        //             path: vec![AnotherObjectValuePath::Ident(v.name.clone())]
+        //         }
+        //     )
+        // }).collect::<Vec<_>>();
+        // val
+        compiler_panic!(ExprPanic::SpreadNotAllowed)
     }
     else {
         vec![arg]
