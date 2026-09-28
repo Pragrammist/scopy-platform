@@ -207,7 +207,7 @@ pub enum LiteralValue {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct LitValueString{
-    pub val: ObjectIdent,
+    pub val: String,
 }
 
 

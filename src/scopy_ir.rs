@@ -734,7 +734,6 @@ pub fn parse_attributes_from_comments(comments: Vec<Comment>) -> Vec<Attribute> 
         if comment.kind == CommentKind::Block {
             continue;
         }
-        // comment.text — это уже без // или /* */
         let attrs = parse_attributes(&comment.text);
         result.extend(attrs);
     }

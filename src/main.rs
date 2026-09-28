@@ -17,8 +17,12 @@ mod byte_maker;
 mod wasm_unit_tests;
 mod include_build_in_modules;
 
+
+
+
 fn main() {
     let all_modules = collect_js_files();
+
 
     let project = parse_modules(all_modules);
     let d = convert_to_lowering_ir(&project);

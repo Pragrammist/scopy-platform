@@ -13,7 +13,7 @@ use wasm_encoder::{
     TypeSection,
     ValType,
 };
-use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, BinaryObjectValue, BinaryOpType, ConditionStatement, ExportDataValue, FunctionCallResultValue, FunctionValue, ImportDataValue, LiteralValue, LoopStatement, ObjectData, ObjectDataValue, ObjectValue, ScopeStatement, ScopyModule, ScopyProject, Statement};
+use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, BinaryObjectValue, BinaryOpType, ConditionStatement, ExportDataValue, FunctionCallResultValue, FunctionValue, ImportDataValue, LitValueBool, LitValueNum, LitValueString, LiteralValue, LoopStatement, ObjectData, ObjectDataValue, ObjectValue, ScopeStatement, ScopyModule, ScopyProject, Statement};
 
 trait InsertMany<T> {
     fn insert_many<I: IntoIterator<Item = T>>(&mut self, iter: I);
@@ -36,10 +36,6 @@ macro_rules! compiler_panic {
 }
 
 
-
-pub fn none_data () -> AlignedData{
-    0u64.to_le_bytes().to_vec()
-}
 
 
 
@@ -85,7 +81,35 @@ pub type ObjectIdentFull = Vec<ObjectIdent>;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct PrimitiveVal{
-    pub data: Vec<u8>,
+    pub data: AlignedData,
+    pub ident: ObjectIdentFull
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub struct PrimitiveValNum{
+    pub data: AlignedData,
+    pub ident: ObjectIdentFull
+}
+
+
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub struct PrimitiveValNull {
+    pub data: AlignedData,
+    pub ident: ObjectIdentFull
+}
+
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub struct PrimitiveValBool{
+    pub data: AlignedData,
+    pub ident: ObjectIdentFull
+}
+
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub struct PrimitiveValStr{
+    pub data: Vec<AlignedData>,
     pub ident: ObjectIdentFull
 }
 
@@ -102,25 +126,28 @@ pub struct  ModuleWithOperations {
     pub operations: Vec<OperationUnit>,
 }
 
+
+
+
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub enum OperationUnit {
     CallChainStart,
     CallChainEnd,
     StartModule,
-    Function(ObjectIdentFull),
-    FuncResult(ObjectIdentFull),
-    FuncArg(ObjectIdentFull),
-    FunctionCall(ObjectIdentFull),
-    FuncInit,
+    FuncStart(FunctionPrimitiveVal),
+    FuncResultEnd(FuncResultHeader),
+    FuncInitArg(FunctionArgData),
+    FuncCall(ObjectIdentFull),
     FuncParam,
     AnotherObject(ObjectIdentFull),
     AnotherObjectVal(AnotherObjectVal),
-    Str(PrimitiveVal),
-    Bool(PrimitiveVal),
-    Null(PrimitiveVal),
-    Num(PrimitiveVal),
+    Str(PrimitiveValStr),
+    Bool(PrimitiveValBool),
+    Null(PrimitiveValNull),
+    Num(PrimitiveValNum),
     Export(ObjectIdentFull),
     Import(ObjectIdentFull),
+
     IfScope,
     LoopScope,
     ElseScope,
@@ -161,23 +188,41 @@ pub enum OperationUnit {
 
 }
 
-
-
-
-
-
-type AlignedData = Vec<u8>;
-
-
-
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub struct FuncResultHeader {
+    pub semantic_data: ObjectData,
+    pub cur_obj: ObjectIdentFull
+}
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-pub enum LitOperationType {
-    Str(Vec<u8>),
-    Bool(Vec<u8>),
-    Null(Vec<u8>),
-    Num(Vec<u8>)
+pub struct FunctionArgData{
+    pub ident: ObjectIdentFull,
+    pub number: u32,
+    pub semantic_data: ObjectData
 }
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub struct FunctionPrimitiveVal{
+    pub ident: ObjectIdentFull,
+    pub params_count: ParamsCount,
+    pub result_param:  FuncResultHeader
+}
+
+
+
+
+
+
+pub type ParamsCount = u64;
+
+
+
+
+
+
+type AlignedData = i64;
+
+
 
 
 
@@ -320,39 +365,54 @@ fn parse_func_val(func: &FunctionValue, current_context: &CurrentOperationContex
 
     let params = parse_func_params(func, current_context, cur_obj.clone());
 
-    
 
+    let func_oper = vec![OperationUnit::FuncStart(FunctionPrimitiveVal{
+        ident: cur_obj.clone(),
+        params_count: func.params.len() as ParamsCount,
+        result_param: FuncResultHeader{
+            cur_obj: cur_obj.clone(),
+            semantic_data: *func.result.clone(),
+        }
+    })];
 
-    current_context.last_operation.insert_many(params.clone());
-    let result_unit = parse_func_result(&func, current_context, cur_obj.clone());
-
-    current_context.last_operation.insert_many(result_unit.clone());
     let scope_operations = convert_scope(&func.scope, current_context, cur_obj.clone());
 
+    current_context.last_operation.insert_many(params.clone());
+    let end_oper = parse_func_result(&func, current_context, cur_obj.clone());
 
 
-
-    [params, scope_operations, result_unit].concat()
+    [func_oper, params, scope_operations, end_oper].concat()
 }
 
 
 
 
 fn parse_func_result(func: &FunctionValue, current_context: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
-    let oper = OperationUnit::FuncResult(cur_obj.clone());
-    let oper_unit = convert_obj(&func.result, current_context,  cur_obj.clone());
-    [vec![oper], oper_unit].concat()
+    vec![OperationUnit::FuncResultEnd(FuncResultHeader{
+        semantic_data: *func.result.clone(),
+        cur_obj: cur_obj.clone(),
+    })]
 }
 
+
+
+
 fn parse_func_params(func: &FunctionValue, current_context: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
+    let mut mut_arg_index = 0;
     let params = func.params.iter().flat_map(|p| {
-        let cur_obj = [cur_obj.clone(), vec![p.name.clone()]].concat();
-        let oper_unit = OperationUnit::FuncArg(cur_obj.clone());
-        let obj = convert_obj(p, current_context, cur_obj.clone());
-        [vec![oper_unit], obj].concat()
+        let cur_obj = vec![p.name.clone()] as ObjectIdentFull;
+        let oper_unit = OperationUnit::FuncInitArg(FunctionArgData{
+            ident: cur_obj.clone(),
+            number: mut_arg_index,
+            semantic_data: p.clone()
+        });
+        mut_arg_index += 1;
+        vec![oper_unit]
     }).collect::<Vec<_>>();
     params
 }
+
+
 
 
 fn convert_binary_op_type(
@@ -441,36 +501,54 @@ fn convert_obj_val(object_val: &ObjectValue, current_ctx: &CurrentOperationConte
 fn convert_literal(literal: &LiteralValue, current_id: ObjectIdentFull) -> Vec<OperationUnit> {
     match &literal {
         LiteralValue::Str(val) => {
-            vec![OperationUnit::Str(PrimitiveVal{
-                data: align(val.val.clone().into_bytes()),
+            vec![OperationUnit::Str(PrimitiveValStr{
+                data: str_to_vec_i64(val),
                 ident: current_id.clone(),
             })]
         },
         LiteralValue::Bool(val) => {
-            vec![OperationUnit::Bool(PrimitiveVal{
-                data: align(bool_to_bytes(val.val.clone())),
+            vec![OperationUnit::Bool(PrimitiveValBool{
+                data: bool_to_i64(val),
                 ident: current_id.clone(),
             })]
         },
         LiteralValue::Null => {
-            vec![OperationUnit::Null(PrimitiveVal{
-                data: AlignSize::default().to_le_bytes().to_vec(),
+            vec![OperationUnit::Null(PrimitiveValNull {
+                data: null_as_i64(),
                 ident: current_id.clone(),
             })]
         },
         LiteralValue::Num(val) => {
-            vec![OperationUnit::Num(PrimitiveVal{
-                data: align(val.val.to_le_bytes().to_vec()),
+            vec![OperationUnit::Num(PrimitiveValNum{
+                data: num_to_i64(val),
                 ident: current_id.clone(),
             })]
         },
     }
 }
+fn num_to_i64(val: &LitValueNum) -> AlignedData{
+    val.val as i64
+}
+
+fn null_as_i64() -> AlignedData {
+    0i64
+}
+
+fn str_to_vec_i64(val: &LitValueString) -> Vec<AlignedData> {
+    let bytes = align(val.val.clone().into_bytes());
+    assert_eq!(bytes.len() % 8, 0, "len must be multiple of 8");
+
+    bytes
+        .chunks_exact(8)
+        .map(|chunk| i64::from_le_bytes(chunk.try_into().unwrap()))
+        .collect()
+}
 
 
 
 
-fn align(bytes: Vec<u8>) -> AlignedData {
+
+fn align(bytes: Vec<u8>) -> Vec<u8> {
     let padding = (8 - bytes.len() % 8) % 8;
 
     bytes
@@ -482,8 +560,8 @@ fn align(bytes: Vec<u8>) -> AlignedData {
 
 
 
-fn bool_to_bytes(value: bool) -> AlignedData {
-    (value as AlignSize).to_le_bytes().to_vec()
+fn bool_to_i64(val: &LitValueBool) -> AlignedData {
+    val.val as i64
 }
 
 
@@ -511,7 +589,13 @@ fn convert_statement(stmt: &Statement, current_ctx: &CurrentOperationContext) ->
 
 fn convert_obj_as_stmt(obj: &ObjectData, current_ctx: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
     let obj_res = convert_obj(&obj, current_ctx,  cur_obj.clone());
-    obj_res
+
+    if cur_obj == vec!["result"]{
+        [obj_res].concat()
+    }
+    else {
+        obj_res
+    }
 }
 
 fn convert_conditional(cond: &ConditionStatement, current_ctx: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
