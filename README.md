@@ -13,4 +13,4 @@ TODO global
 * api for mem management
 * api for meta-programming
 * golden tests
-* Erlang model of parallelism, concurrency and asynchronicity
+* model of parallelism, concurrency and asynchronicity
