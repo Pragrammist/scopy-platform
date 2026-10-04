@@ -13,6 +13,7 @@ use wasm_encoder::{
     TypeSection,
     ValType,
 };
+use wasmtime::component::__internal::wasmtime_environ::object::ReadCacheOps;
 use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, BinaryObjectValue, BinaryOpType, ConditionStatement, ExportDataValue, FunctionCallResultValue, FunctionValue, ImportDataValue, LitValueBool, LitValueNum, LitValueString, LiteralValue, LoopStatement, ObjectData, ObjectDataValue, ObjectValue, ScopeStatement, ScopyModule, ScopyProject, Statement};
 
 trait InsertMany<T> {
@@ -137,8 +138,7 @@ pub enum OperationUnit {
     FuncStart(FunctionPrimitiveVal),
     FuncResultEnd(FuncResultHeader),
     FuncInitArg(FunctionArgData),
-    FuncCall(ObjectIdentFull),
-    FuncParam,
+    FuncCall(FunctionPrimitiveVal),
     AnotherObject(ObjectIdentFull),
     AnotherObjectVal(AnotherObjectVal),
     Str(PrimitiveValStr),
@@ -189,8 +189,13 @@ pub enum OperationUnit {
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
+pub struct FuncCallData{
+
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct FuncResultHeader {
-    pub semantic_data: ObjectData,
+    pub size: i32,
     pub cur_obj: ObjectIdentFull
 }
 
@@ -198,13 +203,13 @@ pub struct FuncResultHeader {
 pub struct FunctionArgData{
     pub ident: ObjectIdentFull,
     pub number: u32,
-    pub semantic_data: ObjectData
+    pub is_val: bool
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct FunctionPrimitiveVal{
     pub ident: ObjectIdentFull,
-    pub params_count: ParamsCount,
+    pub params: Vec<FunctionArgData>,
     pub result_param:  FuncResultHeader
 }
 
@@ -338,24 +343,49 @@ fn convert_bin_oper(bin: &BinaryObjectValue, current_context: &CurrentOperationC
 fn parse_func_call(func_call: &FunctionCallResultValue, current_context: &CurrentOperationContext,  cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
     let current_context = &mut current_context.clone();
 
-    let args_operations = parse_func_cal_param(func_call, current_context, cur_obj.clone());
+    let args_objs = parse_func_cal_param(func_call, current_context, cur_obj.clone());
+    let args_operations = args_objs.iter().flat_map(|o| convert_obj(o, current_context, cur_obj.clone())).collect::<Vec<_>>();
+    let params_for_header = args_objs.iter().enumerate().map(|(i, o)| {
+        FunctionArgData{
+            is_val: is_val(o),
+            ident: vec![o.name.clone()],
+            number: i as u32
+        }
+    }).collect::<Vec<_>>();
     current_context.last_operation.insert_many(args_operations.clone());
-    let result_operation = parse_func_call_result(&func_call, current_context, cur_obj.clone());
+    let res_header = FuncResultHeader{
+        size: calc_result_size_value(&func_call.result),
+        cur_obj: cur_obj.clone(),
+    };
 
-    [args_operations, result_operation].concat()
+    let func_cal_oper = vec![OperationUnit::FuncCall(FunctionPrimitiveVal{
+        result_param: res_header,
+        ident: cur_obj.clone(),
+        params: params_for_header
+    })];
+
+
+    [args_operations, func_cal_oper].concat()
 }
 
-fn parse_func_cal_param (func_call: &FunctionCallResultValue, current_context: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
-    let args_operations = func_call.args.iter().flat_map(|m| {
-        let oper = OperationUnit::FuncParam;
-        let res = convert_object_data_value(m, current_context, cur_obj.clone());
-        [vec![oper], res].concat()
+fn parse_func_cal_param (func_call: &FunctionCallResultValue, current_context: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<ObjectData> {
+    let args_operations = func_call.args.iter().enumerate().map(|(i, m)| {
+        let obj_name: ObjectIdent = format!("arg{}", i);
+        let data = ObjectData{
+            name: obj_name.clone(),
+            value: m.clone(),
+            is_mutable: false,
+            attrs: vec![]
+        };
+        data
     }).collect::<Vec<_>>();
     args_operations
 }
 
+
+
+
 fn parse_func_call_result (func_call: &FunctionCallResultValue, current_context: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
-    
     let result_operation = convert_object_data_value(&func_call.result, current_context, cur_obj.clone());
     result_operation
 }
@@ -368,28 +398,81 @@ fn parse_func_val(func: &FunctionValue, current_context: &CurrentOperationContex
 
     let func_oper = vec![OperationUnit::FuncStart(FunctionPrimitiveVal{
         ident: cur_obj.clone(),
-        params_count: func.params.len() as ParamsCount,
         result_param: FuncResultHeader{
-            cur_obj: cur_obj.clone(),
-            semantic_data: *func.result.clone(),
-        }
+            cur_obj: vec![func.result.name.clone()],
+            size: calc_func_result_size(&func.result),
+        },
+        params: params.clone(),
     })];
 
-    let scope_operations = convert_scope(&func.scope, current_context, cur_obj.clone());
+
+    let params = params.iter().map(|p| OperationUnit::FuncInitArg(p.clone())).collect::<Vec<_>>();
 
     current_context.last_operation.insert_many(params.clone());
+    let scope_operations = convert_scope(&func.scope, current_context, cur_obj.clone());
+
+
+    current_context.last_operation.insert_many(scope_operations.clone());
     let end_oper = parse_func_result(&func, current_context, cur_obj.clone());
 
 
     [func_oper, params, scope_operations, end_oper].concat()
 }
 
+fn calc_func_result_size(result: &ObjectData) -> i32{
+    calc_result_size_value(&result.value)
+}
+
+fn calc_result_size_value(value: &ObjectDataValue) -> i32 {
+    match &value {
+        ObjectDataValue::Enum(_) => {todo!()}
+        ObjectDataValue::Object(obj) => {
+            let props = obj.props.iter().map(|p| calc_func_result_size(p)).sum::<i32>();
+            props
+        }
+        ObjectDataValue::AnotherObject(an_obj) => {
+            calc_func_result_size(&an_obj.obj)
+        }
+        ObjectDataValue::Literal(lit) => {
+            match lit {
+                LiteralValue::Str(str) => {
+                    let vec = str_to_vec_i64(str).len() * size_of::<AlignedData>();
+                    vec as i32
+                }
+                LiteralValue::Bool(bo   ) => {
+                    size_of::<AlignedData>() as i32
+                }
+                LiteralValue::Null => {
+                    size_of::<AlignedData>() as i32
+                }
+                LiteralValue::Num(_) => {
+                    size_of::<AlignedData>() as i32
+                }
+            }
+        }
+        ObjectDataValue::Function(_) => {
+            size_of::<AlignedData>() as i32
+        }
+        ObjectDataValue::FunctionCall(res) => {
+            calc_result_size_value(&res.result)
+        }
+        ObjectDataValue::Binary(bin) => {
+            size_of::<AlignedData>() as i32
+        }
+        ObjectDataValue::Import(imports) => {
+            imports.imports.iter().map(|o| calc_func_result_size(&o.obj)).sum::<i32>()
+        }
+        ObjectDataValue::Export(exports) => {
+            exports.exports.iter().map(|o| calc_func_result_size(&o.obj)).sum::<i32>()
+        }
+    }
+}
 
 
 
 fn parse_func_result(func: &FunctionValue, current_context: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
     vec![OperationUnit::FuncResultEnd(FuncResultHeader{
-        semantic_data: *func.result.clone(),
+        size: calc_func_result_size(&func.result),
         cur_obj: cur_obj.clone(),
     })]
 }
@@ -397,21 +480,38 @@ fn parse_func_result(func: &FunctionValue, current_context: &CurrentOperationCon
 
 
 
-fn parse_func_params(func: &FunctionValue, current_context: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<OperationUnit> {
+fn parse_func_params(func: &FunctionValue, current_context: &CurrentOperationContext, cur_obj: ObjectIdentFull) -> Vec<FunctionArgData> {
     let mut mut_arg_index = 0;
-    let params = func.params.iter().flat_map(|p| {
+    let params = func.params.iter().map(|p| {
         let cur_obj = vec![p.name.clone()] as ObjectIdentFull;
-        let oper_unit = OperationUnit::FuncInitArg(FunctionArgData{
+        let arg = FunctionArgData{
             ident: cur_obj.clone(),
             number: mut_arg_index,
-            semantic_data: p.clone()
-        });
+            is_val: is_val(p)
+        };
         mut_arg_index += 1;
-        vec![oper_unit]
+        arg
     }).collect::<Vec<_>>();
     params
 }
 
+fn is_val(p: &ObjectData) -> bool {
+     is_val_obj_val(&p.value)
+}
+
+fn is_val_obj_val(p_val: &ObjectDataValue) -> bool {
+    match p_val {
+        ObjectDataValue::Enum(_) => false,
+        ObjectDataValue::Object(_) => false,
+        ObjectDataValue::AnotherObject(_) => false,
+        ObjectDataValue::Literal(_) => true, //todo: strings
+        ObjectDataValue::Function(_) => false,
+        ObjectDataValue::FunctionCall(func_call) => is_val_obj_val(&func_call.result),
+        ObjectDataValue::Binary(_) => false,
+        ObjectDataValue::Import(_) => false,
+        ObjectDataValue::Export(_) => false
+    }
+}
 
 
 
@@ -456,8 +556,8 @@ fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &Cu
             }
             AnotherObjectValuePath::FunctionCall(func_call) => {
                 let func_call = ObjectDataValue::FunctionCall(func_call.clone());
-                let opers = convert_object_data_value(&func_call, current_context, curr_owner.clone());
-
+                let opers = convert_object_data_value(&func_call, current_context, full_ident.clone());
+                full_ident.clear();
             }
         }
     });
@@ -477,8 +577,6 @@ fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &Cu
             ident: curr_owner,
         })]
     }
-
-    
 
 }
 fn convert_obj_val(object_val: &ObjectValue, current_ctx: &CurrentOperationContext, current_owner_ident: ObjectIdentFull) -> Vec<OperationUnit> {
