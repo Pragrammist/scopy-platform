@@ -23,6 +23,13 @@ Low semantic
 * obj and str as val if it < 128 bits.
 * func result, func arg, func index while runtime as 8 bytes
 * dot call func syntax as new var
+* **
+* func as runtime arg value (func index)
+* func call by index in runtime
+* closures
+* func call in chain
+* **
+
 
 TODO global
 * import/exports

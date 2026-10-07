@@ -4,6 +4,7 @@ use std::iter;
 use std::string::ToString;
 use serde::Serialize;
 use wasm_encoder::{CodeSection, DataSection, ElementSection, ExportKind, ExportSection, Function, FunctionSection, GlobalSection, ImportSection, Instruction, MemArg, MemorySection, MemoryType, Module, StartSection, TableSection, TypeSection, ValType};
+use wasmtime::Enabled::No;
 use crate::low_ir::{OperationUnit, ObjectIdentFull, ModuleWithOperations, ObjectIdent};
 
 
@@ -51,6 +52,9 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
         OperationUnit::CallChainStart => {}
         OperationUnit::CallChainEnd => {}
         OperationUnit::FuncStart(function) => {
+
+
+
             let args = [vec![ValType::I32], vec![ValType::I64; function.params.len()]].concat();
             let ret_val = vec![];
 
@@ -58,8 +62,36 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
             ctx.sections.functions.functions.push(ctx.cur_func_index);
             ctx.sections.code.functions.push(Function::new([]));
 
+            let func =  ctx.sections.code.functions
+                .last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+
+
+            ctx.ident_map.insert(function.ident.clone(), ctx.cur_mem_index);
+
+
+
+
+
+            func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+            func.instruction(&Instruction::I64Const(ctx.cur_func_index as i64));
+            func.instruction(&Instruction::I64Store(MemArg {
+                offset: ctx.cur_mem_index as u64,
+                align: 3,
+                memory_index: ctx.cur_mem_index as u32,
+            }));
+
+
+
+
+            ctx.cur_mem_index += BIT_64_SIZE;
+
+
 
             ctx.last_cur_mem_index = ctx.cur_mem_index;
+
+
+
+
 
             ctx.cur_mem_index = 0;
 
@@ -117,9 +149,34 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
 
 
             
-            let ident_index = find_in_ident_map(&ctx.ident_map, &ident_to_write).unwrap_or_else(|| compiler_panic!(ByteMakingException::ObjectIdentNotFound));
-            let max_ident_index: i64 = find_in_ident_map_max(&ctx.ident_map, &ident_to_write).unwrap_or_else(|| compiler_panic!(ByteMakingException::ObjectIdentNotFound));
-            let data_size = ident_index - max_ident_index;
+            let ident_index_res = find_in_ident_map(&ctx.ident_map, &ident_to_write);
+
+
+
+            let (ident_index, data_size) = match ident_index_res {
+                None => {
+                    ctx.last_ident_maps.iter().find_map(|ident_map_prev| {
+                        let index_res: Option<i64> = find_in_ident_map(&ident_map_prev, &ident_to_write);
+                        match index_res {
+                            None => None,
+                            Some(ident_index) => {
+                                let max_ident_index: i64 = find_in_ident_map_max(&ident_map_prev, &ident_to_write).unwrap_or(ident_index);
+                                let data_size = ident_index - max_ident_index;
+                                Some((ctx.cur_mem_index as i64, data_size))
+                            }
+                        }
+                    }).unwrap_or_else(|| compiler_panic!(ByteMakingException::ObjectIdentNotFound))
+                }
+                Some(ident_index) => {
+                    let max_ident_index: i64 = find_in_ident_map_max(&ctx.ident_map, &ident_to_write).unwrap_or(ident_index);
+                    let data_size = ident_index - max_ident_index;
+                    (ident_index, data_size)
+                }
+            };
+
+
+
+
 
             if ctx.last_result_index >= data_size as i32{
                 ctx.last_result_index = 0;
@@ -187,6 +244,13 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
         }
         OperationUnit::FuncCall(func_call) => {
             let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+
+
+            //todo: call index from mem runtime
+
+
+
+
             let func_call_index = ctx.func_map.iter()
                 .find(|(ident, _)| **ident == func_call.ident)
                 .map(|(_, index)| *index)
@@ -388,25 +452,7 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
 }
 
 
-// fn find_in_ident_map(
-//     ident_map: &BTreeMap<ObjectIdentFull, i32>,
-//     query: &ObjectIdentFull,
-// ) -> i64 {
-//
-//     ident_map.iter()
-//         .filter(|(path, _)| {
-//             let query_len = query.len();
-//
-//             let path = path.iter()
-//                 .take(query_len)
-//                 .map(|m| m.clone())
-//                 .collect::<Vec<_>>() as ObjectIdentFull;
-//
-//             path == *query
-//         })
-//         .min_by_key(|(_, index)| *index)
-//         .map(|(_, v)| *v).unwrap_or_else(|| compiler_panic!(ByteMakingException::ObjectIdentNotFound)) as i64
-// }
+
 
 fn find_in_ident_map<Res: From<Num>, Num: Ord + Into<Res> + Copy> (
     ident_map: &BTreeMap<ObjectIdentFull, Num>,

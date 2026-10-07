@@ -348,7 +348,7 @@ fn parse_func_call(func_call: &FunctionCallResultValue, current_context: &Curren
     let params_for_header = args_objs.iter().enumerate().map(|(i, o)| {
         FunctionArgData{
             is_val: is_val(o),
-            ident: vec![o.name.clone()],
+            ident: cur_obj.clone(),
             number: i as u32
         }
     }).collect::<Vec<_>>();
