@@ -293,6 +293,11 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
 
 
         }
+        /* i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita
+        i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita
+        i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita
+        i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita
+         */
         OperationUnit::AnotherObjectVal(another_obj) => {
             let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
@@ -303,8 +308,8 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
             let (ident_index, data_size) = get_index_size!(ctx, &ident_to_write);
 
             let (index_to_write, result_write) = write_index!(ctx, ident_to_write, ident_where_write);
-
-
+            /* Goggins was here */
+            /* sing of my friend */
             write_value!(
                 func, ctx,
                 ident_to_write, ident_index,
