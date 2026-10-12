@@ -139,12 +139,10 @@ pub enum OperationUnit {
     FuncResultEnd(FuncResultHeader),
     FuncInitArg(FunctionArgData),
     FuncCall(FunctionPrimitiveVal),
-    AnotherObject(ObjectIdentFull),
     AnotherObjectVal(AnotherObjectVal),
     Str(PrimitiveValStr),
-    Bool(PrimitiveValBool),
-    Null(PrimitiveValNull),
     Num(PrimitiveValNum),
+    
     Export(ObjectIdentFull),
     Import(ObjectIdentFull),
 
@@ -568,9 +566,6 @@ fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &Cu
     else if is_import {
         vec![OperationUnit::Import(full_ident.clone())]
     }
-    else if curr_owner.is_empty(){
-        vec![OperationUnit::AnotherObject(full_ident.clone())]
-    }
     else {
         vec![OperationUnit::AnotherObjectVal(AnotherObjectVal{
             data: full_ident.clone(),
@@ -605,16 +600,10 @@ fn convert_literal(literal: &LiteralValue, current_id: ObjectIdentFull) -> Vec<O
             })]
         },
         LiteralValue::Bool(val) => {
-            vec![OperationUnit::Bool(PrimitiveValBool{
-                data: bool_to_i64(val),
-                ident: current_id.clone(),
-            })]
+            vec![]
         },
         LiteralValue::Null => {
-            vec![OperationUnit::Null(PrimitiveValNull {
-                data: null_as_i64(),
-                ident: current_id.clone(),
-            })]
+            vec![]
         },
         LiteralValue::Num(val) => {
             vec![OperationUnit::Num(PrimitiveValNum{

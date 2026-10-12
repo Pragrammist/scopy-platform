@@ -1,5 +1,5 @@
 TODO semantic:
-* arr as mem span
+* str as mem span
 * tests on import/exports
 * add tests that import exports codes touched
 * prototype checking
@@ -12,10 +12,13 @@ TODO semantic:
 * named scope
 * enums
 * make assign instead of const syntax
+* erase null make 0 instead
 
 
 
-Low semantic
+* **
+Low semantic:
+* **
 * state machine (iter func)
 * async/paralelism ()
 * problem with multiple result in if for index incr
@@ -28,6 +31,7 @@ Low semantic
 * func call by index in runtime
 * closures
 * func call in chain
+* call index from mem runtime
 * **
 
 
