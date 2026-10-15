@@ -142,7 +142,7 @@ pub enum OperationUnit {
     AnotherObjectVal(AnotherObjectVal),
     Str(PrimitiveValStr),
     Num(PrimitiveValNum),
-    
+
     Export(ObjectIdentFull),
     Import(ObjectIdentFull),
 
@@ -502,7 +502,7 @@ fn is_val_obj_val(p_val: &ObjectDataValue) -> bool {
         ObjectDataValue::Enum(_) => false,
         ObjectDataValue::Object(_) => false,
         ObjectDataValue::AnotherObject(_) => false,
-        ObjectDataValue::Literal(_) => true, //todo: strings
+        ObjectDataValue::Literal(_) => true, 
         ObjectDataValue::Function(_) => false,
         ObjectDataValue::FunctionCall(func_call) => is_val_obj_val(&func_call.result),
         ObjectDataValue::Binary(_) => false,

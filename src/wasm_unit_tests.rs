@@ -41,6 +41,8 @@ mod validate_byte_code_tests {
         let d = convert_to_lowering_ir(&project);
         println!("WASM valid: {:?}", d);
         let wasm_bytes = build_modules(d);
+
+        dump_memory(&wasm_bytes).unwrap();
     }
 
 
@@ -178,7 +180,7 @@ mod validate_byte_code_tests {
 
             }
 
-            const res = va1();
+            const result = va1();
 
             export { va1 }
 

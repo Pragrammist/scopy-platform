@@ -25,6 +25,9 @@ const LOCALS_SHIFT: u32 = 1;
 const RESULT_IDENT: &str = "result";
 
 
+const ALIGN_SIZE: i64 = 8;
+
+
 impl std::fmt::Display for ByteMakingException {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self{
@@ -44,18 +47,25 @@ macro_rules! compiler_panic {
 
 
 
-macro_rules! get_index_size {
+macro_rules! get_index_data {
     ($ctx:expr, $ident_to_write:expr) => {{
-        let result = match find_in_ident_map(&$ctx.ident_map, $ident_to_write) {
+        let ident_to_write = $ident_to_write;
+
+        let val_is_copy = $ctx
+            .ident_map
+            .iter()
+            .any(|(ident, _)| **ident == ident_to_write);
+
+        let (ident_index, data_size) = match find_in_ident_map(&$ctx.ident_map, &ident_to_write) {
             None => {
                 $ctx.last_ident_maps
                     .iter()
                     .find_map(|ident_map_prev| {
-                        match find_in_ident_map(ident_map_prev, $ident_to_write) {
+                        match find_in_ident_map(ident_map_prev, &ident_to_write) {
                             None => None,
                             Some(ident_index) => {
                                 let max_ident_index: i64 =
-                                    find_in_ident_map_max(ident_map_prev, $ident_to_write)
+                                    find_in_ident_map_max(ident_map_prev, &ident_to_write)
                                         .unwrap_or(ident_index);
                                 let data_size = ident_index - max_ident_index;
                                 Some(($ctx.cur_mem_index as i64, data_size))
@@ -68,26 +78,27 @@ macro_rules! get_index_size {
             }
             Some(ident_index) => {
                 let max_ident_index: i64 =
-                    find_in_ident_map_max(&$ctx.ident_map, $ident_to_write)
+                    find_in_ident_map_max(&$ctx.ident_map, &ident_to_write)
                         .unwrap_or(ident_index);
                 let data_size = ident_index - max_ident_index;
                 (ident_index, data_size)
             }
         };
 
-        // сброс last_result_index, если он "перерос" размер данных
-        if $ctx.last_result_index >= result.1 as i32 {
+        if $ctx.last_result_index >= data_size as i32 {
             $ctx.last_result_index = 0;
         }
 
-        result
+        (ident_index, data_size, val_is_copy)
     }};
 }
 
+
+
 macro_rules! write_index {
-    ($ctx:expr, $ident_to_write:expr, $ident_where_write:expr) => {{
-        let result_write = $ident_to_write == vec![RESULT_IDENT.to_string()];
-        let index = if result_write {
+    ($ctx:expr, $ident_where_write:expr) => {{
+        let where_result_write = $ident_where_write == vec![RESULT_IDENT.to_string()];
+        let index = if where_result_write {
             let res = $ctx.last_result_index;
             $ctx.last_result_index += BIT_64_SIZE;
             res
@@ -99,127 +110,38 @@ macro_rules! write_index {
             $ctx.cur_mem_index += BIT_64_SIZE;
             res
         };
-        (index, result_write)
+        (index, where_result_write)
     }};
 }
 
 
-macro_rules! write_value {
-    (
-        $func:expr, $ctx:expr,
-        $ident_to_write:expr, $ident_index:expr,
-        $index_to_write:expr, $data_size:expr, $result_write:expr
-    ) => {{
-        let val_is_copy = $ctx
-            .ident_map
-            .iter()
-            .any(|(ident, _)| **ident == $ident_to_write);
 
-        if val_is_copy {
-            $func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-            $func.instruction(&Instruction::I64Load(MemArg {
-                offset: $ident_index as u64,
-                align: 3,
-                memory_index: $ctx.cur_page_index,
-            }));
-            $func.instruction(&Instruction::I64Store(MemArg {
-                offset: $index_to_write as u64,
-                align: 3,
-                memory_index: $ctx.cur_page_index,
-            }));
-        } else if $result_write && $data_size > 0 {
-            // destination where to copy
-            $func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-            $func.instruction(&Instruction::I32Const($index_to_write));
-            $func.instruction(&Instruction::I32Add);
 
-            // src to copy
-            $func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-            $func.instruction(&Instruction::I32Const($ident_index as i32));
-            $func.instruction(&Instruction::I32Add);
-
-            // size
-            $func.instruction(&Instruction::I32Const($data_size as i32));
-
-            $func.instruction(&Instruction::MemoryCopy { src_mem: 0, dst_mem: 0 });
-        } else {
-            $func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-
-            $func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-            $func.instruction(&Instruction::I64ExtendI32U);
-            $func.instruction(&Instruction::I64Const($ident_index));
-            $func.instruction(&Instruction::I64Add);
-
-            $func.instruction(&Instruction::I64Store(MemArg {
-                offset: $index_to_write as u64,
-                align: 3,
-                memory_index: $ctx.cur_page_index,
-            }));
-        }
-    }};
-}
 
 fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
     match tag {
         OperationUnit::CallChainStart => {}
         OperationUnit::CallChainEnd => {}
         OperationUnit::FuncStart(function) => {
-
-
-
             let args = [vec![ValType::I32], vec![ValType::I64; function.params.len()]].concat();
             let ret_val = vec![];
 
             ctx.sections.types.functions.push((args, ret_val));
             ctx.sections.functions.functions.push(ctx.cur_func_index);
             ctx.sections.code.functions.push(Function::new([]));
-          
-          
-          
-          
-            // 
-            // let func =  ctx.sections.code.functions
-            //     .last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
-
-            // 
-            // ctx.ident_map.insert(function.ident.clone(), ctx.cur_mem_index);
-            
-            //
-            //
-            // func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-            // func.instruction(&Instruction::I64Const(ctx.cur_func_index as i64));
-            // func.instruction(&Instruction::I64Store(MemArg {
-            //     offset: ctx.cur_mem_index as u64,
-            //     align: 3,
-            //     memory_index: ctx.cur_mem_index as u32,
-            // }));
-            //
-
+            ctx.func_map.insert(function.ident.clone(), ctx.cur_func_index as i32);
+            ctx.last_ident_maps.push(ctx.ident_map.clone());
+            ctx.ident_map = BTreeMap::default();
 
 
             ctx.cur_mem_index += BIT_64_SIZE;
-
-
-
             ctx.last_cur_mem_index = ctx.cur_mem_index;
 
 
-
-
-
-            ctx.cur_mem_index = 0;
-
+            ctx.cur_mem_index = 0 + function.result_param.size;
             ctx.last_result_index = 0;
-
-            ctx.cur_mem_index += function.result_param.size;
-
-
-            ctx.func_map.insert(function.ident.clone(), ctx.cur_func_index as i32);
-
             ctx.cur_func_index += 1;
 
-            ctx.last_ident_maps.push(ctx.ident_map.clone());
-            ctx.ident_map = BTreeMap::default();
         }
         OperationUnit::FuncResultEnd(_) => {
             ctx.cur_mem_index = ctx.last_cur_mem_index;
@@ -229,36 +151,32 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
             let func =  ctx.sections.code.functions
                 .last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
-            ctx.ident_map.insert(func_arg.ident, ctx.cur_mem_index);
+            let cur_index = ctx.cur_mem_index;
+            ctx.cur_mem_index += BIT_64_SIZE;
+
+            ctx.ident_map.insert(func_arg.ident, cur_index);
 
             let local_index = LOCALS_SHIFT + func_arg.number;
 
-
+            
             func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-
-
             func.instruction(&Instruction::LocalGet(local_index));
-            func.instruction(&Instruction::I64ExtendI32U);
-
-
             func.instruction(&Instruction::I64Store(MemArg {
-                offset: ctx.cur_mem_index as u64,
+                offset: cur_index as u64,
                 align: 3,
-                memory_index: ctx.cur_mem_index as u32,
+                memory_index: cur_index as u32,
             }));
 
 
-            ctx.cur_mem_index += BIT_64_SIZE
+
+
+
+
 
 
         }
         OperationUnit::FuncCall(func_call) => {
             let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
-
-
-
-
-
 
             let func_call_index = ctx.func_map.iter()
                 .find(|(ident, _)| **ident == func_call.ident)
@@ -299,68 +217,131 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
         i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita
          */
         OperationUnit::AnotherObjectVal(another_obj) => {
-            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            let func = ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
             let ident_to_write = another_obj.data;
             let ident_where_write = another_obj.ident;
 
+            // ----- get_index_size -----
+            let (ident_index, data_size, val_is_copy) = get_index_data!(ctx, ident_to_write);
 
-            let (ident_index, data_size) = get_index_size!(ctx, &ident_to_write);
+            // ----- write_index -----
+            let (index_where_write, result_write) = write_index!(ctx, ident_where_write);
 
-            let (index_to_write, result_write) = write_index!(ctx, ident_to_write, ident_where_write);
+
             /* Goggins was here */
-            /* sing of my friend */
-            write_value!(
-                func, ctx,
-                ident_to_write, ident_index,
-                index_to_write, data_size, result_write
-            );
+            /* Sign by Yura */
 
+
+            if val_is_copy {
+                func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+                func.instruction(&Instruction::I64Load(MemArg {
+                    offset: ident_index as u64,
+                    align: 3,
+                    memory_index: ctx.cur_page_index,
+                }));
+                func.instruction(&Instruction::I64Store(MemArg {
+                    offset: index_where_write as u64,
+                    align: 3,
+                    memory_index: ctx.cur_page_index,
+                }));
+            } else if result_write && data_size > 0 {
+                // destination where to copy
+                func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+                func.instruction(&Instruction::I32Const(index_where_write));
+                func.instruction(&Instruction::I32Add);
+
+                // src to copy
+                func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+                func.instruction(&Instruction::I32Const(ident_index as i32));
+                func.instruction(&Instruction::I32Add);
+
+                // size
+                func.instruction(&Instruction::I32Const(data_size as i32));
+
+                func.instruction(&Instruction::MemoryCopy { src_mem: 0, dst_mem: 0 });
+            } else {
+                func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+
+                func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+                func.instruction(&Instruction::I64ExtendI32U);
+                func.instruction(&Instruction::I64Const(ident_index));
+                func.instruction(&Instruction::I64Add);
+
+                func.instruction(&Instruction::I64Store(MemArg {
+                    offset: index_where_write as u64,
+                    align: 3,
+                    memory_index: ctx.cur_page_index,
+                }));
+            }
         }
         OperationUnit::Str(val) => {
             let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
+            let ident_where_write = val.ident.clone();
             ctx.ident_map.insert(val.ident,  ctx.cur_mem_index);
 
 
-            val.data
+
+            (&val.data)
                 .into_iter()
                 .for_each(|i64_val| {
+                    let (index_where_write, _) = write_index!(ctx, ident_where_write);
 
                     func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-                    func.instruction(&Instruction::I64Const(i64_val));
+                    func.instruction(&Instruction::I64Const(*i64_val));
                     func.instruction(&Instruction::I64Store(MemArg {
-                        offset: ctx.cur_mem_index as u64,
+                        offset: index_where_write as u64,
                         align: 3,
                         memory_index: ctx.cur_page_index,
                     }));
 
-
-                    ctx.cur_mem_index += BIT_64_SIZE;
                 });
 
+            let (index_where_write, _) = write_index!(ctx, ident_where_write);
 
-        }
-        OperationUnit::Num(val) => {
-            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
-
-            ctx.cur_mem_index = ctx.ident_map.iter().find(|(id, _)| **id == val.ident.clone()).map(|(_, r)| r).unwrap_or(&ctx.cur_mem_index).clone();
-            ctx.ident_map.insert(val.ident,  ctx.cur_mem_index);
+            let str_size = val.data.len() as i64 * ALIGN_SIZE;
+            let start_of_str_index = index_where_write as i64 - str_size;
 
 
+
+            //address to write
             func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
-            func.instruction(&Instruction::I32Const(ctx.cur_mem_index));
-            func.instruction(&Instruction::I32Add);
 
-            func.instruction(&Instruction::I64Const(val.data));
+            //val
+            func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+            func.instruction(&Instruction::I64ExtendI32U);
+            func.instruction(&Instruction::I64Const(start_of_str_index));
+            func.instruction(&Instruction::I64Add);
+
             func.instruction(&Instruction::I64Store(MemArg {
-                offset: 0,
+                offset: index_where_write as u64,
                 align: 3,
                 memory_index: ctx.cur_page_index,
             }));
 
+        }
+        OperationUnit::Num(val) => {
+            let func = ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
-            ctx.cur_mem_index += BIT_64_SIZE;
+            let ident_where_write = val.ident;
+
+            // ----- write_index -----
+            let (index_where_write, _) = write_index!(ctx, ident_where_write);
+
+            /* Goggins was here */
+            /* sing of my friend */
+
+            // ----- write_value -----
+            func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+
+            func.instruction(&Instruction::I64Const(val.data));
+
+            func.instruction(&Instruction::I64Store(MemArg {
+                offset: index_where_write as u64,
+                align: 3,
+                memory_index: ctx.cur_page_index,
+            }));
         },
         OperationUnit::IfScope => {}
         OperationUnit::LoopScope => {}

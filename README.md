@@ -13,6 +13,8 @@ TODO semantic:
 * enums
 * make assign instead of const syntax
 * erase null make 0 instead
+* erase bin oper make it as func
+* make dot as pipe operator
 
 
 
@@ -23,9 +25,8 @@ Low semantic:
 * async/paralelism ()
 * problem with multiple result in if for index incr
 * make copy external obj out of scope
-* obj and str as val if it < 128 bits.
-* func result, func arg, func index while runtime as 8 bytes
-* dot call func syntax as new var
+* dot call func syntax as new var?
+* cal func make possible as new func with saved args
 * **
 * func as runtime arg value (func index)
 * func call by index in runtime
