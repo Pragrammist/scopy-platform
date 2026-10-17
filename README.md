@@ -4,6 +4,7 @@ TODO semantic:
 * add tests that import exports codes touched
 * prototype checking
 * attributes
+* make key value in obj instead =
 * jsx
 * while as compiled func 
 * if as compiled func
@@ -15,6 +16,7 @@ TODO semantic:
 * erase null make 0 instead
 * erase bin oper make it as func
 * make dot as pipe operator
+* block stmt with result
 
 
 

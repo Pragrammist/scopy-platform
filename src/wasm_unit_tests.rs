@@ -41,10 +41,11 @@ mod validate_byte_code_tests {
         let d = convert_to_lowering_ir(&project);
         println!("WASM valid: {:?}", d);
         let wasm_bytes = build_modules(d);
+        let wasm_validate_res = check_wasm(&wasm_bytes);
 
+        assert!(wasm_validate_res.is_ok());
         dump_memory(&wasm_bytes).unwrap();
     }
-
 
 
     fn dump_memory(wasm_bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
@@ -175,12 +176,22 @@ mod validate_byte_code_tests {
         CodeModuleMetaData{
             code:  r#"
             const va1 = (result={
-
+                x1= 30,
+                x2= {
+                    x1=31,
+                    x2=0
+                }
             }) => {
-
+                const result={
+                    x1= 30,
+                    x2= {
+                        x1=31,
+                        x2=0
+                    }
+                };
             }
 
-            const result = va1();
+            const va1_result = va1();
 
             export { va1 }
 

@@ -1,10 +1,9 @@
 use std::collections::{BTreeMap};
-use std::fmt::format;
-use std::iter;
 use std::string::ToString;
 use serde::Serialize;
-use wasm_encoder::{CodeSection, DataSection, ElementSection, ExportKind, ExportSection, Function, FunctionSection, GlobalSection, ImportSection, Instruction, MemArg, MemorySection, MemoryType, Module, StartSection, TableSection, TypeSection, ValType};
-use wasmtime::Enabled::No;
+use wasm_encoder::{CodeSection, DataSection, ElementSection, ExportKind, ExportSection, Function,
+                   FunctionSection, GlobalSection, ImportSection, Instruction, MemArg, MemorySection,
+                   MemoryType, Module, StartSection, TableSection, TypeSection, ValType};
 use crate::low_ir::{OperationUnit, ObjectIdentFull, ModuleWithOperations, ObjectIdent};
 
 
@@ -116,8 +115,6 @@ macro_rules! write_index {
 
 
 
-
-
 fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
     match tag {
         OperationUnit::CallChainStart => {}
@@ -127,9 +124,9 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
             let ret_val = vec![];
 
             ctx.sections.types.functions.push((args, ret_val));
-            ctx.sections.functions.functions.push(ctx.cur_func_index);
+            ctx.sections.functions.functions.push(ctx.func_counter);
             ctx.sections.code.functions.push(Function::new([]));
-            ctx.func_map.insert(function.ident.clone(), ctx.cur_func_index as i32);
+            ctx.func_map.insert(function.ident.clone(), ctx.func_counter as i32);
             ctx.last_ident_maps.push(ctx.ident_map.clone());
             ctx.ident_map = BTreeMap::default();
 
@@ -140,16 +137,21 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
 
             ctx.cur_mem_index = 0 + function.result_param.size;
             ctx.last_result_index = 0;
-            ctx.cur_func_index += 1;
-
+            ctx.func_counter += 1;
+            ctx.cur_func += 1;
         }
         OperationUnit::FuncResultEnd(_) => {
+            let func =  ctx.sections.code.functions.get_mut(ctx.cur_func)
+                .unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            func.instruction(&Instruction::End);
+
             ctx.cur_mem_index = ctx.last_cur_mem_index;
-            ctx.ident_map = ctx.last_ident_maps.pop().unwrap_or(Default::default())
+            ctx.ident_map = ctx.last_ident_maps.pop().unwrap_or(Default::default());
+            ctx.cur_func -= 1;
         }
         OperationUnit::FuncInitArg(func_arg) => {
-            let func =  ctx.sections.code.functions
-                .last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            let func =  ctx.sections.code.functions.get_mut(ctx.cur_func)
+                .unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
             let cur_index = ctx.cur_mem_index;
             ctx.cur_mem_index += BIT_64_SIZE;
@@ -166,17 +168,10 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
                 align: 3,
                 memory_index: cur_index as u32,
             }));
-
-
-
-
-
-
-
-
         }
         OperationUnit::FuncCall(func_call) => {
-            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            let func =  ctx.sections.code.functions.get_mut(ctx.cur_func)
+                .unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
             let func_call_index = ctx.func_map.iter()
                 .find(|(ident, _)| **ident == func_call.ident)
@@ -184,6 +179,10 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
                 .unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
 
+            let result_ident = [func_call.ident, vec!["result".to_string()]].concat();
+
+
+            ctx.ident_map.insert(result_ident, ctx.cur_mem_index);
 
             func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
             func.instruction(&Instruction::I32Const(ctx.cur_mem_index));
@@ -208,6 +207,8 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
             func.instruction(&Instruction::Call(func_call_index as u32));
 
 
+            ctx.cur_mem_index += func_call.result_param.size;
+
 
 
         }
@@ -217,11 +218,14 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
         i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita i pray for you Great Mita
          */
         OperationUnit::AnotherObjectVal(another_obj) => {
-            let func = ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            let func =  ctx.sections.code.functions.get_mut(ctx.cur_func)
+                .unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
             let ident_to_write = another_obj.data;
             let ident_where_write = another_obj.ident;
 
+
+            println!("{:?}", ctx.ident_map);
             // ----- get_index_size -----
             let (ident_index, data_size, val_is_copy) = get_index_data!(ctx, ident_to_write);
 
@@ -235,11 +239,13 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
 
             if val_is_copy {
                 func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
+                func.instruction(&Instruction::LocalGet(RUNTIME_INDEX_LOCAL));
                 func.instruction(&Instruction::I64Load(MemArg {
                     offset: ident_index as u64,
                     align: 3,
                     memory_index: ctx.cur_page_index,
                 }));
+
                 func.instruction(&Instruction::I64Store(MemArg {
                     offset: index_where_write as u64,
                     align: 3,
@@ -276,7 +282,8 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
             }
         }
         OperationUnit::Str(val) => {
-            let func =  ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            let func =  ctx.sections.code.functions.get_mut(ctx.cur_func)
+                .unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
             let ident_where_write = val.ident.clone();
             ctx.ident_map.insert(val.ident,  ctx.cur_mem_index);
@@ -322,7 +329,8 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
 
         }
         OperationUnit::Num(val) => {
-            let func = ctx.sections.code.functions.last_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
+            let func =  ctx.sections.code.functions.get_mut(ctx.cur_func)
+                .unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
 
             let ident_where_write = val.ident;
 
@@ -376,17 +384,17 @@ fn make_operation_unit(tag: OperationUnit, ctx: &mut ByteMakerCurrentContext){
                 }
             );
             ctx.sections.types.functions.push((vec![], vec![]));
-            ctx.sections.functions.functions.push(ctx.cur_func_index);
-            ctx.sections.code.functions.push(Function::new([(0, ValType::I32)]));
+            ctx.sections.functions.functions.push(ctx.func_counter);
+            ctx.sections.code.functions.push(Function::new([(1, ValType::I32)]));
 
 
-            ctx.cur_func_index += 1;
-
+            ctx.func_counter += 1;
             ctx.cur_page_index = 0;
         }
         OperationUnit::EndModule => {
             let func =  ctx.sections.code.functions.first_mut().unwrap_or_else(|| compiler_panic!(ByteMakingException::NoFunction));
             func.instruction(&Instruction::End);
+            ctx.cur_func = 0;
         }
         OperationUnit::Export(_) => {
             ctx.sections.exports.exports.push(ExportUnit{
@@ -682,9 +690,9 @@ struct ByteMakerCurrentContext{
     pub sections: WasmSections,
     pub current_tags: Vec<OperationUnit>,
     pub cur_mem_index: i32,
-    pub cur_func_index: u32,
+    pub func_counter: u32,
     pub ident_map: BTreeMap<ObjectIdentFull, i32>,
-    // pub cur_func: usize,     // индекс в sections.code.functions
+    pub cur_func: usize,     // индекс в sections.code.functions
     // pub main_func: usize,    // тоже индекс
     pub current_module_name: ObjectIdent,
     pub last_ident_maps: Vec<BTreeMap<ObjectIdentFull, i32>>,

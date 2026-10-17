@@ -545,16 +545,19 @@ fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &Cu
 
     let current_context = &mut current_context.clone();
 
-
-    let opers = another_obj.path.iter().for_each(|m| {
+    let mut data = vec![];
+    let mut opers = vec![];
+    another_obj.path.iter().for_each(|m| {
         match m {
             AnotherObjectValuePath::Ident(ident) => {
                 full_ident.push(ident.clone());
-
+                data = full_ident.clone();
             }
             AnotherObjectValuePath::FunctionCall(func_call) => {
                 let func_call = ObjectDataValue::FunctionCall(func_call.clone());
-                let opers = convert_object_data_value(&func_call, current_context, full_ident.clone());
+                opers = convert_object_data_value(&func_call, current_context, full_ident.clone());
+                full_ident.push("result".to_string());
+                data = full_ident.clone();
                 full_ident.clear();
             }
         }
@@ -567,10 +570,10 @@ fn convert_another_object(another_obj: &AnotherObjectValue, current_context: &Cu
         vec![OperationUnit::Import(full_ident.clone())]
     }
     else {
-        vec![OperationUnit::AnotherObjectVal(AnotherObjectVal{
-            data: full_ident.clone(),
+        [opers, vec![OperationUnit::AnotherObjectVal(AnotherObjectVal{
+            data: data,
             ident: curr_owner,
-        })]
+        })]].concat()
     }
 
 }

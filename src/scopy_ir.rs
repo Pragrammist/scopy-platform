@@ -1318,7 +1318,15 @@ pub fn parse_arrow_expr(arrow_expr: &ArrowExpr, ctx: &CurrentContext, glob_ctx: 
 
         FunctionValue {
             scope: Box::new(scope),
-            params: params,
+            params: params.iter().filter_map(|arg| {
+                if arg.name != "result".to_string()
+                {
+                    Some(arg.clone())
+                }
+                else {
+                    None
+                }
+            }).collect(),
             result:Box::new(result)
         }
     }
