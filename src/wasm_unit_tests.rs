@@ -44,7 +44,13 @@ mod validate_byte_code_tests {
         let wasm_validate_res = check_wasm(&wasm_bytes);
 
         assert!(wasm_validate_res.is_ok());
+        match print_bytes(&wasm_bytes) {
+            Ok(wat) => eprintln!("{wat}"),
+            Err(print_err) => eprintln!("[wasmprinter failed: {print_err}]"),
+        }
         dump_memory(&wasm_bytes).unwrap();
+
+
     }
 
 

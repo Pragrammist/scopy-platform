@@ -11,7 +11,7 @@ TODO semantic:
 * import as func
 * result assign as export for module
 * named scope
-* enums
+* enums attribute or etc (through func maybe)
 * make assign instead of const syntax
 * erase null make 0 instead
 * erase bin oper make it as func

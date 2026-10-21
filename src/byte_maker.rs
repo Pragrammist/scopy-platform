@@ -96,7 +96,7 @@ macro_rules! get_index_data {
 
 macro_rules! write_index {
     ($ctx:expr, $ident_where_write:expr) => {{
-        let where_result_write = $ident_where_write == vec![RESULT_IDENT.to_string()];
+        let where_result_write = !$ident_where_write.is_empty() && $ident_where_write[0] == RESULT_IDENT;
         let index = if where_result_write {
             let res = $ctx.last_result_index;
             $ctx.last_result_index += BIT_64_SIZE;

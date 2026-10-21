@@ -127,7 +127,6 @@ pub struct ObjectData {
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 #[serde(tag = "val", content = "val_data")]
 pub enum ObjectDataValue {
-    Enum (EnumObjectValue),
     Object (ObjectValue),
     AnotherObject(AnotherObjectValue),
     Literal (LiteralValue),

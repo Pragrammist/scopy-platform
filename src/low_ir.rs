@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use serde::Serialize;
 use swc_ecma_ast::op;
 use wasm_encoder::{
@@ -13,7 +13,9 @@ use wasm_encoder::{
     TypeSection,
     ValType,
 };
+use wasmparser::Data;
 use wasmtime::component::__internal::wasmtime_environ::object::ReadCacheOps;
+use wasmtime::component::ReadBuffer;
 use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, BinaryObjectValue, BinaryOpType, ConditionStatement, ExportDataValue, FunctionCallResultValue, FunctionValue, ImportDataValue, LitValueBool, LitValueNum, LitValueString, LiteralValue, LoopStatement, ObjectData, ObjectDataValue, ObjectValue, ScopeStatement, ScopyModule, ScopyProject, Statement};
 
 trait InsertMany<T> {
@@ -77,6 +79,9 @@ pub fn convert_to_lowering_ir(scopy_project: &ScopyProject) -> Vec<ModuleWithOpe
 
 
 type AlignSize = i64;
+
+
+
 pub type ObjectIdent = String;
 pub type ObjectIdentFull = Vec<ObjectIdent>;
 
@@ -270,7 +275,6 @@ fn convert_object_data_value(
 
 
     match &obj_data_val{
-        ObjectDataValue::Enum(_) => todo!(),
         ObjectDataValue::Object(object_val) => {
             convert_obj_val(&object_val, current_context, current_obj)
         },
@@ -423,7 +427,6 @@ fn calc_func_result_size(result: &ObjectData) -> i32{
 
 fn calc_result_size_value(value: &ObjectDataValue) -> i32 {
     match &value {
-        ObjectDataValue::Enum(_) => {todo!()}
         ObjectDataValue::Object(obj) => {
             let props = obj.props.iter().map(|p| calc_func_result_size(p)).sum::<i32>();
             props
@@ -499,7 +502,6 @@ fn is_val(p: &ObjectData) -> bool {
 
 fn is_val_obj_val(p_val: &ObjectDataValue) -> bool {
     match p_val {
-        ObjectDataValue::Enum(_) => false,
         ObjectDataValue::Object(_) => false,
         ObjectDataValue::AnotherObject(_) => false,
         ObjectDataValue::Literal(_) => true, 
@@ -727,4 +729,230 @@ fn convert_scope(scope: &ScopeStatement, current_ctx: &CurrentOperationContext, 
     let end_scope = OperationUnit::EndScope;
     [vec![start_scope], d, vec![end_scope]].concat()
 }
+
+
+
+
+fn calc_offset(scopy_project: &ScopyProject) -> Vec<FunctionLayout>{
+    let ctx =  OffsetCalcCtx::default();
+    let data = scopy_project.modules.iter().flat_map(|module| {
+        let data = module.statements.iter().map(|statement| {
+            let layout = calc_layout_statement(statement, &ctx);
+            layout
+        }).collect::<Vec<_>>();
+        let layouts = data.iter().flat_map(|(obj, _)| {
+            obj.clone()
+        }).collect::<Vec<_>>();
+
+        let funcs = data.iter().flat_map(|(_, fns)| {
+            let funcs = fns.clone();
+            funcs
+        }).collect::<Vec<_>>();
+        let int_func = FunctionLayout{
+
+        };
+
+        let data = [funcs, vec![int_func]].concat();
+        data
+    }).collect::<Vec<_>>();
+
+
+
+
+    data
+
+}
+
+fn layout_to_operations(layouts: ObjectLayout){
+    layouts.iter().flat_map(|data|{
+        data
+    });
+    todo!()
+}
+
+fn calc_layout_statement(statement: &Statement, ctx: &OffsetCalcCtx) -> (ObjectLayout, ModuleLayout){
+    match statement {
+        Statement::Object(obj) => {
+            let d = calc_offset_obj(obj, ctx);
+            d
+        }
+        Statement::ObjectValue(val) => {
+            let d = calc_offset_obj_val(&val, ctx);
+            d
+        }
+        Statement::Scope(scope) => {
+            let d = scope.statements.iter().flat_map(|s| {
+                let d = calc_layout_statement(&s, ctx);
+                d
+            }).collect::<Vec<_>>();
+            d
+        }
+        //todo: remove
+        Statement::Conditional(_) => {}
+        Statement::Loop(_) => {}
+    }
+}
+
+
+
+
+fn calc_offset_obj(obj: &ObjectData, ctx: &OffsetCalcCtx) -> (ObjectLayout, ModuleLayout){
+    let obj_ident = [ctx.cur_ident.clone(), vec![obj.name.clone()]].concat() as ObjectIdentFull;
+    let ctx = &OffsetCalcCtx{
+        cur_ident: obj_ident.clone(),
+        ..ctx.clone()
+    };
+    let data_layout = calc_offset_obj_val(&obj.value, ctx);
+    data_layout
+}
+
+fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &OffsetCalcCtx) -> (ObjectLayout, ModuleLayout){
+    let data = match obj_val {
+        ObjectDataValue::Object(obj) => {
+            todo!()
+        }
+        ObjectDataValue::AnotherObject(_) => {todo!()}
+        ObjectDataValue::Literal(lit) => {
+            let base_data = match lit {
+                LiteralValue::Str(str) => {
+                    let str_len = str.val.as_bytes().len();
+                    let num_size = size_of::<AlignSize>();
+                    let data = str_to_vec_i64(str);
+                    let str_layout = StrLayout{
+                        offset: ctx.cur_offset + str_len,
+                        str_data: data,
+                        ident: ctx.cur_ident
+                    };
+                    BaseDataLayout::StrLayout(str_layout)
+                }
+                LiteralValue::Num(num) => {
+                    let num_size = size_of::<AlignSize>();
+
+                    let num_layout = NumLayout{
+                        num_data: num.val as i64,
+                        offset: ctx.cur_offset + num_size,
+                        ident: ctx.cur_ident.clone()
+                    };
+                    BaseDataLayout:: NumLayout(num_layout)
+                }
+                //todo:remove
+                LiteralValue::Bool(_) => {}
+                LiteralValue::Null => {}
+            };
+            (vec![DataLayout::BaseData(base_data)], vec![])
+        }
+        ObjectDataValue::Function(func_val) => {
+            func_val.scope.
+            let func_layout = FunctionLayout{
+
+            };
+            
+            (vec![DataLayout::BaseData(BaseDataLayout::FuncRef)], vec![])
+        }
+        ObjectDataValue::FunctionCall(func_call) => {
+            let func_call_data_layout = FunctionResultLayout {
+                ident: ctx.cur_ident,
+                data
+            };
+            todo!()
+        }
+        ObjectDataValue::Import(_) => {}
+        ObjectDataValue::Export(_) => {}
+
+        //todo:remove
+        ObjectDataValue::Binary(_) => {}
+    };
+
+    data
+}
+
+
+
+
+
+#[derive(Clone, Debug, Serialize)]
+pub struct FunctionLayout{
+    pub params_count: ObjectLayout,
+    pub result: FunctionResultLayout,
+    pub offset: usize,
+    pub scope_body: ObjectLayout
+}
+
+
+pub type ModuleLayout = Vec<FunctionLayout>;
+pub type ObjectLayout = Vec<DataLayout>;
+
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct OffsetCalcCtx{
+    pub cur_offset: usize,
+    pub cur_ident: ObjectIdentFull,
+    pub call_map: BTreeMap<ObjectIdentFull, usize>
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct FuncRefLayout{
+
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub enum BaseDataLayout{
+    NumLayout(NumLayout),
+    StrLayout(StrLayout),
+    AnotherObjectLayout(AnotherObjectLayout),
+    FuncRef
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub enum DataLayout{
+    BaseData(BaseDataLayout),
+    FunctionCall(FunctionResultLayout),
+}
+
+
+
+#[derive(Clone, Debug, Serialize)]
+pub struct FunctionResultLayout {
+    pub data: Vec<BaseDataLayout>,
+    pub offset: usize,
+    pub ident: ObjectIdentFull,
+}
+
+
+#[derive(Clone, Debug, Serialize)]
+pub struct NumLayout{
+    pub num_data: AlignedData,
+    pub offset: usize,
+    pub ident: ObjectIdentFull
+}
+
+
+
+
+#[derive(Clone, Debug, Serialize)]
+pub struct StrLayout{
+    pub str_data: Vec<AlignedData>,
+    pub offset: usize,
+    pub ident: ObjectIdentFull,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct AnotherObjectLayout{
+    pub obj_index_data: AlignedData,
+    pub offset: usize,
+    pub ident: ObjectIdentFull,
+    pub another_obj_ident: ObjectIdentFull,
+    pub another_obj_data_size: usize,
+    pub another_obj_offset: usize,
+    pub layout_type: AnotherObjectLayoutType
+}
+
+
+#[derive(Clone, Debug, Serialize)]
+pub enum AnotherObjectLayoutType{
+    NumLayout,
+    StrLayout,
+    ObjectLayout
+}
+
 

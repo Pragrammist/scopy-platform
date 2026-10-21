@@ -1110,13 +1110,6 @@ pub fn map_prop_obj_data(prop: Option<ObjectData>, member_name: &ObjectIdent) ->
 
 pub fn another_obj_from_member(val: &ObjectDataValue, member_name: &ObjectIdent, ctx: &CurrentContext) -> Option<AnotherObjectValue>{
     match val {
-        ObjectDataValue::Enum(enum_object_value) => {
-
-
-            let prop = find_member_in_props(&enum_object_value.props, &member_name);
-            let another_obj = map_prop_obj_data(prop, member_name);
-            another_obj
-        },
         ObjectDataValue::Object(object_value) => {
             let prop = find_member_in_props(&object_value.props, &member_name);
             let another_obj = map_prop_obj_data(prop, member_name);
@@ -1415,7 +1408,6 @@ pub fn create_func_result(val_call: ObjectDataValue, args: Vec<ObjectDataValue>)
     let func_call = match val_call {
         ObjectDataValue::Function(_) => compiler_panic!(ExprPanic::NotAnotherObjectValueBeforeFunctionCall),
         ObjectDataValue::AnotherObject(another_object_value) => func_call_result(&another_object_value, args),
-        ObjectDataValue::Enum(_) => compiler_panic!(ExprPanic::EnumValueNotFunction),
         ObjectDataValue::Object(_) => compiler_panic!(ExprPanic::ObjectValueNotFunction),
         ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueNotFunction),
         ObjectDataValue::FunctionCall(_) => compiler_panic!(ExprPanic::NestedFunctionCallNotAllowed),
@@ -1472,7 +1464,6 @@ pub fn func_call_result(another_val: &AnotherObjectValue, args: Vec<ObjectDataVa
             }
         },
         ObjectDataValue::AnotherObject(_) => compiler_panic!(ExprPanic::NotFunctionCallAfterAnotherObjectValue),
-        ObjectDataValue::Enum(_) => compiler_panic!(ExprPanic::EnumValueNotFunction),
         ObjectDataValue::Object(_) => compiler_panic!(ExprPanic::ObjectValueNotFunction),
         ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueNotFunction),
         ObjectDataValue::FunctionCall(_) => compiler_panic!(ExprPanic::NestedFunctionCallNotAllowed),
