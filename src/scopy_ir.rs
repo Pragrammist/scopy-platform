@@ -536,39 +536,43 @@ pub enum StmtPanic {
     ObjectNotScope,
     ObjectValueNotScope,
     ConditionalNotScope,
-    LoopNotScope
+    LoopNotScope,
+    IfStmtNotSupported,
+    WhileStmtNotSupported,
 }
 
 impl std::fmt::Display for StmtPanic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EmptyStatementNotAllowed => write!(f, "Empty statement is not allowed"),
-            Self::DebuggerNotAllowed => write!(f, "Debugger statement is not allowed"),
-            Self::WithNotAllowed => write!(f, "With statement is not allowed (TS/legacy)"),
-            Self::ReturnNotAllowed => write!(f, "Return statement is not allowed; use 'const result = yourResult' instead"),
-            Self::LabeledNotAllowed => write!(f, "Labeled statement is not allowed"),
-            Self::BreakNotAllowed => write!(f, "Break statement is not allowed"),
-            Self::ContinueNotAllowed => write!(f, "Continue statement is not allowed"),
-            Self::SwitchNotAllowed => write!(f, "Switch statement is not allowed"),
-            Self::ThrowNotAllowed => write!(f, "Throw statement is not allowed"),
-            Self::TryNotAllowed => write!(f, "Try statement is not allowed"),
-            Self::DoWhileNotAllowed => write!(f, "Do-while statement is not allowed"),
-            Self::ForNotAllowed => write!(f, "For statement is not allowed"),
-            Self::ForInNotAllowed => write!(f, "For-in statement is not allowed"),
-            Self::ForOfNotAllowed => write!(f, "For-of statement is not allowed"),
-            Self::ClassDeclarationNotAllowed => write!(f, "Class declaration is not allowed"),
-            Self::FunctionDeclarationNotAllowed => write!(f, "Function declaration is not allowed; use arrow functions instead"),
-            Self::UsingNotAllowed => write!(f, "Using declaration is not allowed"),
-            Self::TsNotAllowed => write!(f, "TypeScript syntax is not allowed"),
-            Self::NoDeclarations => write!(f, "No declaration found"),
-            Self::MultipleDeclarationsNotAllowed => write!(f, "Multiple declarations in one statement are not allowed"),
-            Self::VarNotAllowed => write!(f, "Var not allowed"),
-            Self::LetNotAllowed => write!(f, "Let not allowed"),
-            Self::MissingInitializer => write!(f, "Missing initializer error"),
-            Self::ObjectNotScope => write!(f, "Object not scope"),
-            Self::ObjectValueNotScope => write!(f, "Object value not scope"),
-            Self::ConditionalNotScope => write!(f, "Conditional not scope"),
-            Self::LoopNotScope => write!(f, "Loop not scope")
+            StmtPanic::EmptyStatementNotAllowed => write!(f, "Empty statement is not allowed"),
+            StmtPanic::DebuggerNotAllowed => write!(f, "Debugger statement is not allowed"),
+            StmtPanic::WithNotAllowed => write!(f, "With statement is not allowed (TS/legacy)"),
+            StmtPanic::ReturnNotAllowed => write!(f, "Return statement is not allowed; use 'const result = yourResult' instead"),
+            StmtPanic::LabeledNotAllowed => write!(f, "Labeled statement is not allowed"),
+            StmtPanic::BreakNotAllowed => write!(f, "Break statement is not allowed"),
+            StmtPanic::ContinueNotAllowed => write!(f, "Continue statement is not allowed"),
+            StmtPanic::SwitchNotAllowed => write!(f, "Switch statement is not allowed"),
+            StmtPanic::ThrowNotAllowed => write!(f, "Throw statement is not allowed"),
+            StmtPanic::TryNotAllowed => write!(f, "Try statement is not allowed"),
+            StmtPanic::DoWhileNotAllowed => write!(f, "Do-while statement is not allowed"),
+            StmtPanic::ForNotAllowed => write!(f, "For statement is not allowed"),
+            StmtPanic::ForInNotAllowed => write!(f, "For-in statement is not allowed"),
+            StmtPanic::ForOfNotAllowed => write!(f, "For-of statement is not allowed"),
+            StmtPanic::ClassDeclarationNotAllowed => write!(f, "Class declaration is not allowed"),
+            StmtPanic::FunctionDeclarationNotAllowed => write!(f, "Function declaration is not allowed; use arrow functions instead"),
+            StmtPanic::UsingNotAllowed => write!(f, "Using declaration is not allowed"),
+            StmtPanic::TsNotAllowed => write!(f, "TypeScript syntax is not allowed"),
+            StmtPanic::NoDeclarations => write!(f, "No declaration found"),
+            StmtPanic::MultipleDeclarationsNotAllowed => write!(f, "Multiple declarations in one statement are not allowed"),
+            StmtPanic::VarNotAllowed => write!(f, "Var not allowed"),
+            StmtPanic::LetNotAllowed => write!(f, "Let not allowed"),
+            StmtPanic::MissingInitializer => write!(f, "Missing initializer error"),
+            StmtPanic::ObjectNotScope => write!(f, "Object not scope"),
+            StmtPanic::ObjectValueNotScope => write!(f, "Object value not scope"),
+            StmtPanic::ConditionalNotScope => write!(f, "Conditional not scope"),
+            StmtPanic::LoopNotScope => write!(f, "Loop not scope"),
+            StmtPanic::IfStmtNotSupported => write!(f, "If stmt not supported"),
+            StmtPanic::WhileStmtNotSupported => write!(f, "While stmt not supported"),
         }
     }
 }
@@ -581,14 +585,17 @@ pub fn parse_stmt(stmt: &Stmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, a
             stmt
         },
         Stmt::If(if_stmt) => {
-            let if_cond = parse_if(if_stmt, ctx, glob_ctx, ast_global_context);
-
-            Statement::Conditional(if_cond)
+            // let if_cond = parse_if(if_stmt, ctx, glob_ctx, ast_global_context);
+            //
+            // Statement::Conditional(if_cond)
+            compiler_panic!(StmtPanic::IfStmtNotSupported)
         },
         Stmt::While(while_stmt) => {
-            let loop_s = parse_while(while_stmt, ctx, glob_ctx, ast_global_context);
-            let loop_stmt = Statement::Loop(loop_s);
-            loop_stmt
+            // let loop_s = parse_while(while_stmt, ctx, glob_ctx, ast_global_context);
+            // let loop_stmt = Statement::Loop(loop_s);
+            // loop_stmt
+
+            compiler_panic!(StmtPanic::WhileStmtNotSupported)
         },
         Stmt::Decl(decl) => {
             match decl{
@@ -880,8 +887,8 @@ pub fn find_in_statements(stmt: &Statement, _: &CurrentContext, name: &ObjectIde
             check_obj_data(object_data, name)
         },
         Statement::ObjectValue(_) => None,
-        Statement::Conditional(_) => None,
-        Statement::Loop(_) => None,
+        // Statement::Conditional(_) => None,
+        // Statement::Loop(_) => None,
         Statement::Scope(_) => None,
     }
 }
@@ -1006,8 +1013,10 @@ pub fn parse_expr(expr:&Expr, ctx: &CurrentContext, glob_ctx: &GlobalContext, as
             ObjectDataValue::Object(object_val)
         },
         Expr::Bin(bin_expr) => {
-            let bin_val = parse_bin_expr(bin_expr, ctx, glob_ctx, ast_global_context);
-            ObjectDataValue::Binary(bin_val)
+            // let bin_val = parse_bin_expr(bin_expr, ctx, glob_ctx, ast_global_context);
+            // ObjectDataValue::Binary(bin_val)
+
+            compiler_panic!(ExprPanic::BinaryOperationNotSupported)
         },
         Expr::Member(member_expr) => {
             let member_expr = parse_member_expr(member_expr, &ctx, glob_ctx, ast_global_context);
@@ -1135,7 +1144,6 @@ pub fn another_obj_from_member(val: &ObjectDataValue, member_name: &ObjectIdent,
         },
         ObjectDataValue::Literal(_) => None,
         ObjectDataValue::Function(_) => None,
-        ObjectDataValue::Binary(_) => None,
         ObjectDataValue::Import(import) => {
             import.imports.iter().find_map(|m| another_obj_from_member(&m.obj.value, member_name, ctx))
         }
@@ -1359,14 +1367,6 @@ pub fn parse_lit_expr(lit_expr: &Lit) -> ObjectDataValue {
                 val: val.value.to_string_lossy().to_string()
             }))
         },
-        Lit::Bool(val) => {
-            ObjectDataValue::Literal(LiteralValue::Bool (LitValueBool{
-                val: val.value
-            }))
-        },
-        Lit::Null(_null) => {
-            ObjectDataValue::Literal(LiteralValue::Null)
-        },
         Lit::Num(number) => {
             ObjectDataValue::Literal(LiteralValue::Num (LitValueNum{
                 val: number.value
@@ -1411,7 +1411,7 @@ pub fn create_func_result(val_call: ObjectDataValue, args: Vec<ObjectDataValue>)
         ObjectDataValue::Object(_) => compiler_panic!(ExprPanic::ObjectValueNotFunction),
         ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueNotFunction),
         ObjectDataValue::FunctionCall(_) => compiler_panic!(ExprPanic::NestedFunctionCallNotAllowed),
-        ObjectDataValue::Binary(_) => compiler_panic!(ExprPanic::BinaryValueNotFunction),
+        
 
         ObjectDataValue::Import(_) => compiler_panic!(ExprPanic::ImportNotFunction),
         ObjectDataValue::Export(_) => compiler_panic!(ExprPanic::ExportNotFunction),
@@ -1467,7 +1467,6 @@ pub fn func_call_result(another_val: &AnotherObjectValue, args: Vec<ObjectDataVa
         ObjectDataValue::Object(_) => compiler_panic!(ExprPanic::ObjectValueNotFunction),
         ObjectDataValue::Literal(_) => compiler_panic!(ExprPanic::LiteralValueNotFunction),
         ObjectDataValue::FunctionCall(_) => compiler_panic!(ExprPanic::NestedFunctionCallNotAllowed),
-        ObjectDataValue::Binary(_) => compiler_panic!(ExprPanic::BinaryValueNotFunction),
 
         ObjectDataValue::Import(_) => compiler_panic!(ExprPanic::ImportNotFunction),
         ObjectDataValue::Export(_) => compiler_panic!(ExprPanic::ExportNotFunction),
@@ -1581,8 +1580,8 @@ pub fn parse_stmt_as_scope(statement: Statement) -> ScopeStatement {
         Statement::Scope(scope) => scope,
         Statement::Object(_) => compiler_panic!(StmtPanic::ObjectNotScope),
         Statement::ObjectValue(_) => compiler_panic!(StmtPanic::ObjectValueNotScope),
-        Statement::Conditional(_) => compiler_panic!(StmtPanic::ConditionalNotScope),
-        Statement::Loop(_) => compiler_panic!(StmtPanic::LoopNotScope),
+        // Statement::Conditional(_) => compiler_panic!(StmtPanic::ConditionalNotScope),
+        // Statement::Loop(_) => compiler_panic!(StmtPanic::LoopNotScope),
         // Statement::Import(_) => compiler_panic!(StmtPanic::ImportNotScope),
         // Statement::Export(_) => compiler_panic!(StmtPanic::ExportNotScope),
     }

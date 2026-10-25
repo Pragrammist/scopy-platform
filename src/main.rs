@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use crate::low_ir::{calc_offset, convert_to_lowering_ir, enrich_operation_layout};
+use crate::low_ir::{calc_offset,  enrich_operation_layout};
 use crate::scopy_ir::{parse_modules};
 use crate::semantic::{CodeModuleMetaData, CodeModuleSourceFileType, ObjectIdent, ScopyModule};
 use wasmtime::{ Result};

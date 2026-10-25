@@ -641,26 +641,24 @@ fn bool_to_i64(val: &LitValueBool) -> AlignedData {
 
 
 pub fn calc_offset(scopy_project: &ScopyProject) -> Vec<ModuleLayout>{
-    let ctx =  OffsetCalcCtx::default();
+    let ctx =  &mut OffsetCalcCtx::default();
     let data = scopy_project.modules.iter().map(|module| {
         let data = module.statements.iter().map(|statement| {
-            let layout = calc_layout_statement(statement, &ctx);
+            let layout = calc_layout_statement(statement, ctx);
             layout
         }).collect::<Vec<_>>();
-        let layouts = data.iter().flat_map(|(obj, _)| {
-            obj.clone()
-        }).collect::<Vec<_>>();
+        let (layouts, funcs) = flat_data_and_func(&data);
 
-        let funcs = data.iter().flat_map(|(_, fns)| {
-            let funcs = fns.clone();
-            funcs
-        }).collect::<Vec<_>>();
-        let int_func = FunctionLayout{
+        let init_func = FunctionLayout{
 
         };
 
-        let data = [funcs, vec![int_func]].concat();
-        data
+        let funcs = [vec![init_func], funcs].concat();
+
+        ModuleLayout{
+            functions_layout: funcs,
+            ident: module.name.clone()
+        }
     }).collect::<Vec<_>>();
 
 
@@ -668,6 +666,18 @@ pub fn calc_offset(scopy_project: &ScopyProject) -> Vec<ModuleLayout>{
 
     data
 
+}
+
+fn flat_data_and_func(data: & Vec<(Vec<DataLayout>, Vec<FunctionLayout>)>) -> (Vec<DataLayout>, Vec<FunctionLayout>){
+    let layouts = data.iter().flat_map(|(obj, _)| {
+        obj.clone()
+    }).collect::<Vec<_>>();
+
+    let funcs = data.iter().flat_map(|(_, fns)| {
+        fns.clone()
+    }).collect::<Vec<_>>();
+
+    (layouts, funcs)
 }
 
 pub fn enrich_operation_layout(modules: &Vec<ModuleLayout>) -> Vec<ModuleOperations>{
@@ -691,14 +701,16 @@ pub fn enrich_operation_layout(modules: &Vec<ModuleLayout>) -> Vec<ModuleOperati
 
 
 fn func_layout_to_operations(func_layout: FunctionLayout) -> Vec<OperationUnit>{
-
+    func_layout.
 }
 
 fn data_layout_to_operation(data_layout: DataLayout){
     match data_layout {
         DataLayout::BaseData(base_data) => {
             match base_data {
-                BaseDataLayout::NumLayout(num_layout) => {}
+                BaseDataLayout::NumLayout(num_layout) => {
+
+                }
                 BaseDataLayout::StrLayout(str_layout) => {}
                 BaseDataLayout::AnotherObjectLayout(another_obj_layout) => {}
                 BaseDataLayout::FuncRef => {
@@ -730,7 +742,7 @@ fn layout_to_operations(layouts: Vec<ModuleLayout>) -> Vec<ModuleWithOperations>
     todo!()
 }
 
-fn calc_layout_statement(statement: &Statement, ctx: &OffsetCalcCtx) -> (Vec<DataLayout>, ModuleLayout){
+fn calc_layout_statement(statement: &Statement, ctx: &mut OffsetCalcCtx) -> (Vec<DataLayout>, Vec<FunctionLayout>){
     match statement {
         Statement::Object(obj) => {
             let d = calc_offset_obj(obj, ctx);
@@ -741,45 +753,48 @@ fn calc_layout_statement(statement: &Statement, ctx: &OffsetCalcCtx) -> (Vec<Dat
             d
         }
         Statement::Scope(scope) => {
-            let d = scope.statements.iter().flat_map(|s| {
+            let d = scope.statements.iter().map(|s| {
                 let d = calc_layout_statement(&s, ctx);
                 d
             }).collect::<Vec<_>>();
-            d
+
         }
-        //todo: remove
-        Statement::Conditional(_) => {}
-        Statement::Loop(_) => {}
     }
 }
 
 
 
 
-fn calc_offset_obj(obj: &ObjectData, ctx: &OffsetCalcCtx) -> (Vec<DataLayout>, ModuleLayout){
+fn calc_offset_obj(obj: &ObjectData, ctx: &mut OffsetCalcCtx) -> (Vec<DataLayout>, Vec<FunctionLayout>){
     let obj_ident = [ctx.cur_ident.clone(), vec![obj.name.clone()]].concat() as ObjectIdentFull;
-    let ctx = &OffsetCalcCtx{
-        cur_ident: obj_ident.clone(),
-        ..ctx.clone()
-    };
+    ctx.cur_ident = obj_ident.clone();
     let data_layout = calc_offset_obj_val(&obj.value, ctx);
     data_layout
 }
 
-fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &OffsetCalcCtx) -> (Vec<DataLayout>, ModuleLayout){
+fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &mut OffsetCalcCtx) -> (Vec<DataLayout>, Vec<FunctionLayout>){
     let data = match obj_val {
         ObjectDataValue::Object(obj) => {
-            todo!()
+            let data = obj.props.iter().map(|prop| {
+                calc_offset_obj(&prop, ctx)
+            }).collect::<Vec<_>>();
+
+            let res = flat_data_and_func(&data);
+            res
         }
-        ObjectDataValue::AnotherObject(_) => {todo!()}
+        ObjectDataValue::AnotherObject(another_obj_val) => {
+            let res = calc_offset_obj_val(&obj_val, ctx);
+            res
+        }
         ObjectDataValue::Literal(lit) => {
             let base_data = match lit {
                 LiteralValue::Str(str) => {
                     let str_len = str.val.as_bytes().len();
                     let num_size = size_of::<AlignSize>();
                     let data = str_to_vec_i64(str);
+                    ctx.cur_offset += str_len as u32;
                     let str_layout = StrLayout{
-                        offset: ctx.cur_offset + str_len,
+                        offset: ctx.cur_offset,
                         str_data: data,
                         ident: ctx.cur_ident
                     };
@@ -787,24 +802,22 @@ fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &OffsetCalcCtx) -> (Vec<D
                 }
                 LiteralValue::Num(num) => {
                     let num_size = size_of::<AlignSize>();
-
+                    ctx.cur_offset += num_size as u32;
                     let num_layout = NumLayout{
                         num_data: num.val as i64,
-                        offset: ctx.cur_offset + num_size,
+                        offset: ctx.cur_offset,
                         ident: ctx.cur_ident.clone()
                     };
                     BaseDataLayout:: NumLayout(num_layout)
                 }
-                //todo:remove
-                LiteralValue::Bool(_) => {}
-                LiteralValue::Null => {}
             };
             (vec![DataLayout::BaseData(base_data)], vec![])
         }
         ObjectDataValue::Function(func_val) => {
 
             let func_layout = FunctionLayout{
-
+                is_init: false,
+                
             };
 
             (vec![DataLayout::BaseData(BaseDataLayout::FuncRef)], vec![])
@@ -812,15 +825,16 @@ fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &OffsetCalcCtx) -> (Vec<D
         ObjectDataValue::FunctionCall(func_call) => {
             let func_call_data_layout = FunctionCallLayout {
                 ident: ctx.cur_ident,
-                data
+
             };
             todo!()
         }
-        ObjectDataValue::Import(_) => {}
-        ObjectDataValue::Export(_) => {}
-
-        //todo:remove
-        ObjectDataValue::Binary(_) => {}
+        ObjectDataValue::Import(_) => {
+            todo!()
+        }
+        ObjectDataValue::Export(_) => {
+            todo!()
+        }
     };
 
     data
@@ -833,12 +847,14 @@ fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &OffsetCalcCtx) -> (Vec<D
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct FunctionLayout{
     pub params: Vec<DataLayout>,
-    pub result: FunctionCallLayout,
+    pub result: Vec<DataLayout>,
     pub offset: u32,
     pub scope_body: Vec<DataLayout>,
     pub func_index: u32,
     pub is_init: bool
 }
+
+
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct ModuleLayout{
@@ -851,6 +867,7 @@ pub struct ModuleLayout{
 #[derive(Clone, Debug, Serialize, Default)]
 pub struct OffsetCalcCtx{
     pub cur_offset: u32,
+    pub func_index: u32,
     pub cur_ident: ObjectIdentFull,
     pub call_map: BTreeMap<ObjectIdentFull, u32>
 }

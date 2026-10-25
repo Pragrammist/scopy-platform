@@ -132,7 +132,7 @@ pub enum ObjectDataValue {
     Literal (LiteralValue),
     Function (FunctionValue),
     FunctionCall(FunctionCallResultValue),
-    Binary (BinaryObjectValue),
+    // Binary (BinaryObjectValue),
     Import (ImportDataValue),
     Export (ExportDataValue)
 }
@@ -199,8 +199,6 @@ pub enum AnotherObjectValuePath{
 #[serde(tag = "lit-val", content = "lit-val-data")]
 pub enum LiteralValue {
     Str (LitValueString),
-    Bool (LitValueBool),
-    Null,
     Num (LitValueNum)
 }
 
@@ -293,9 +291,11 @@ pub struct FunctionValue {
 pub enum Statement {
     Object(ObjectData),
     ObjectValue(ObjectDataValue),
-    Conditional(ConditionStatement),
-    Loop(LoopStatement),
     Scope(ScopeStatement),
+
+
+    // Conditional(ConditionStatement),
+    // Loop(LoopStatement),
 }
 
 
