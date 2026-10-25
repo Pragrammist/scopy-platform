@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use crate::low_ir::{convert_to_lowering_ir};
+use crate::low_ir::{calc_offset, convert_to_lowering_ir, enrich_operation_layout};
 use crate::scopy_ir::{parse_modules};
 use crate::semantic::{CodeModuleMetaData, CodeModuleSourceFileType, ObjectIdent, ScopyModule};
 use wasmtime::{ Result};
@@ -25,10 +25,13 @@ fn main() {
 
 
     let project = parse_modules(all_modules);
-    let d = convert_to_lowering_ir(&project);
-    println!("lowered semantic: {:?}", d);
-    let wasm_bytes = build_modules(d);
+    let layout = calc_offset(&project);
+    let d = enrich_operation_layout(&layout);
+    let wasm_bytes = build_modules(&d);
+    
+    // println!("lowered semantic: {:?}", d.clon);
     create_executable(&wasm_bytes, "scopy_app").expect("");
+    
 }
 
 const RUNNER_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wasm-runner-bin"));
