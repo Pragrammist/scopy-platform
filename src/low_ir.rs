@@ -759,6 +759,10 @@ fn calc_layout_statement(statement: &Statement, ctx: &mut OffsetCalcCtx) -> (Vec
             }).collect::<Vec<_>>();
 
         }
+        Statement::Result(result) => {
+
+        }
+        Statement::Export() => {}
     }
 }
 
@@ -775,50 +779,42 @@ fn calc_offset_obj(obj: &ObjectData, ctx: &mut OffsetCalcCtx) -> (Vec<DataLayout
 fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &mut OffsetCalcCtx) -> (Vec<DataLayout>, Vec<FunctionLayout>){
     let data = match obj_val {
         ObjectDataValue::Object(obj) => {
+            let cur_ident = ctx.cur_ident.clone();
             let data = obj.props.iter().map(|prop| {
-                calc_offset_obj(&prop, ctx)
+                let prop_ctx = &mut ctx.clone();
+                ctx.cur_ident = [ctx.cur_ident, vec![prop.name]].concat();
+
+                calc_offset_obj(&prop, prop_ctx)
             }).collect::<Vec<_>>();
 
             let res = flat_data_and_func(&data);
+
+            ctx.cur_ident = cur_ident;
             res
         }
         ObjectDataValue::AnotherObject(another_obj_val) => {
-            let res = calc_offset_obj_val(&obj_val, ctx);
-            res
+            todo!()
         }
         ObjectDataValue::Literal(lit) => {
-            let base_data = match lit {
-                LiteralValue::Str(str) => {
-                    let str_len = str.val.as_bytes().len();
-                    let num_size = size_of::<AlignSize>();
-                    let data = str_to_vec_i64(str);
-                    ctx.cur_offset += str_len as u32;
-                    let str_layout = StrLayout{
-                        offset: ctx.cur_offset,
-                        str_data: data,
-                        ident: ctx.cur_ident
-                    };
-                    BaseDataLayout::StrLayout(str_layout)
-                }
-                LiteralValue::Num(num) => {
-                    let num_size = size_of::<AlignSize>();
-                    ctx.cur_offset += num_size as u32;
-                    let num_layout = NumLayout{
-                        num_data: num.val as i64,
-                        offset: ctx.cur_offset,
-                        ident: ctx.cur_ident.clone()
-                    };
-                    BaseDataLayout:: NumLayout(num_layout)
-                }
-            };
+            let base_data = calc_lit_layout(lit, ctx);
             (vec![DataLayout::BaseData(base_data)], vec![])
         }
         ObjectDataValue::Function(func_val) => {
+            let ctx_for_func = &mut ctx.clone();
+            ctx_for_func.cur_offset = 0;
+            ctx_for_func.cur_ident = vec!["result".to_string()];
+            let result = func_result_layout_calc(&func_val.result, ctx_for_func);
+            let params_layout =
 
             let func_layout = FunctionLayout{
                 is_init: false,
+                result: result,
+                func_index: ctx.func_index,
+                params:
                 
             };
+
+            ctx.func_index += 1;
 
             (vec![DataLayout::BaseData(BaseDataLayout::FuncRef)], vec![])
         }
@@ -832,12 +828,88 @@ fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &mut OffsetCalcCtx) -> (V
         ObjectDataValue::Import(_) => {
             todo!()
         }
-        ObjectDataValue::Export(_) => {
-            todo!()
-        }
     };
 
     data
+}
+
+fn calc_layout_for_param(obj_val: &ObjectData, ctx: &mut OffsetCalcCtx){
+
+    let res = match &obj_val.value {
+        ObjectDataValue::Object(obj_val) => {
+
+        }
+        ObjectDataValue::AnotherObject(_) => {}
+        ObjectDataValue::Literal(_) => {}
+        ObjectDataValue::Function(_) => {}
+        ObjectDataValue::FunctionCall(_) => {}
+        ObjectDataValue::Import(_) => {}
+    }
+    todo!()
+}
+
+
+fn calc_lit_layout(lit: &LiteralValue, ctx: &mut OffsetCalcCtx) -> BaseDataLayout{
+    let base_data = match lit {
+        LiteralValue::Str(str) => {
+            let str_len = str.val.as_bytes().len();
+            let num_size = size_of::<AlignSize>();
+            let data = str_to_vec_i64(str);
+            ctx.cur_offset += str_len as u32;
+            let str_layout = StrLayout{
+                offset: ctx.cur_offset,
+                str_data: data,
+                ident: ctx.cur_ident.clone()
+            };
+            BaseDataLayout::StrLayout(str_layout)
+        }
+        LiteralValue::Num(num) => {
+            let num_size = size_of::<AlignSize>();
+            ctx.cur_offset += num_size as u32;
+            let num_layout = NumLayout{
+                num_data: num.val as i64,
+                offset: ctx.cur_offset,
+                ident: ctx.cur_ident.clone()
+            };
+            BaseDataLayout:: NumLayout(num_layout)
+        }
+    };
+    base_data
+}
+
+
+
+fn func_result_layout_calc(result: &ObjectData, ctx: &mut OffsetCalcCtx) -> Vec<BaseDataLayout> {
+    let val = &result.value;
+    let d = match val  {
+        ObjectDataValue::Object(obj) => {
+            let data = obj.props.iter().flat_map(|prop| {
+                let prop_ctx = &mut ctx.clone();
+                ctx.cur_ident = [ctx.cur_ident, vec![prop.name]].concat();
+                func_result_layout_calc(prop, prop_ctx)
+            }).collect::<Vec<_>>();
+            data
+        }
+        ObjectDataValue::AnotherObject(another_obj) => {
+            func_result_layout_calc(&another_obj.obj, ctx)
+        }
+        ObjectDataValue::Literal(lit) => {
+            let base_data = calc_lit_layout(lit, ctx);
+            vec![base_data]
+        }
+        ObjectDataValue::Function(_) => {
+            vec![BaseDataLayout::FuncRef]
+        }
+        ObjectDataValue::FunctionCall(_) => {
+            vec![BaseDataLayout::FuncRef]
+        }
+        ObjectDataValue::Import(_) => {
+            vec![BaseDataLayout::FuncRef]
+        }
+    };
+
+    todo!()
+
 }
 
 
@@ -846,8 +918,8 @@ fn calc_offset_obj_val(obj_val: &ObjectDataValue, ctx: &mut OffsetCalcCtx) -> (V
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct FunctionLayout{
-    pub params: Vec<DataLayout>,
-    pub result: Vec<DataLayout>,
+    pub params: Vec<BaseDataLayout>,
+    pub result: Vec<BaseDataLayout>,
     pub offset: u32,
     pub scope_body: Vec<DataLayout>,
     pub func_index: u32,

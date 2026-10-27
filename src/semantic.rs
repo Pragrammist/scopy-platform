@@ -48,14 +48,12 @@ pub struct AstGlobalContext{
 
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 
 #[allow(unused)]
 pub enum  CurrentContextType{
     ModuleContext(ModuleContext),
-    FunctionContext(FunctionContext),
-    LoopContext(LoopContext),
-    ConditionContext(ConditionContext)
+    FunctionContext(FunctionContext)
 }
 
 impl Default for CurrentContextType {
@@ -63,7 +61,7 @@ impl Default for CurrentContextType {
 }
 
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone,  Eq, PartialEq)]
 
 #[allow(unused)]
 pub struct ModuleContext{
@@ -72,50 +70,21 @@ pub struct ModuleContext{
 
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug,  Eq, PartialEq)]
 #[allow(unused)]
 pub struct FunctionContext{
     pub name: ObjectIdent,
 }
 
 
-#[derive(Clone, Debug)]
-#[allow(unused)]
-pub struct LoopContext{
-    pub condition: ObjectDataValue
-}
 
 
-
-#[derive(Clone, Debug)]
-#[allow(unused)]
-pub struct ConditionContext{
-    pub condition: ObjectDataValue,
-    pub true_context: ConditionTrueContext,
-    pub false_context: Option<ConditionFalseContext>
-}
-
-
-
-
-#[derive(Clone, Debug)]
-pub struct  ConditionTrueContext  {
-
-}
-
-
-#[derive(Clone, Debug)]
-pub struct ConditionFalseContext{
-
-}
 
 
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct ObjectData {
-    pub is_mutable: bool,
     pub name: ObjectIdent,
-    pub attrs: Vec<Attribute>,
     pub value: ObjectDataValue,
 }
 
@@ -133,40 +102,24 @@ pub enum ObjectDataValue {
     Function (FunctionValue),
     FunctionCall(FunctionCallResultValue),
     // Binary (BinaryObjectValue),
-    Import (ImportDataValue),
-    Export (ExportDataValue)
+    Import (ImportDataValue)
 }
 
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 #[serde(tag = "import-val")]
 pub struct ImportDataValue {
-    pub imports: Vec<AnotherObjectValue>
+    pub imports: Vec<AnotherObjectValue>,
 }
 
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 #[serde(tag = "export-val")]
 pub struct ExportDataValue {
-    pub exports: Vec<AnotherObjectValue>
+    pub exports: ObjectData,
 }
 
 
-
-
-#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-pub struct BinaryObjectValue{
-    pub op: BinaryOpType,
-    pub v1: Box<ObjectDataValue>,
-    pub v2: Box<ObjectDataValue>
-}
-
-
-#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-pub struct EnumObjectValue{
-    pub props: Vec<ObjectData>,
-    pub variants: Vec<ObjectData>
-}
 
 
 
@@ -181,7 +134,8 @@ pub struct ObjectValue{
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct AnotherObjectValue{
     pub obj: Box<ObjectData>,
-    pub path: Vec<AnotherObjectValuePath>
+    pub path: Vec<AnotherObjectValuePath>,
+    pub is_local: bool
 }
 
 
@@ -227,38 +181,6 @@ pub struct LitValueBool{
 
 
 
-#[derive(Clone, PartialEq, Debug, Serialize, Eq)]
-#[serde(tag = "bin-op-type", content = "bin-op-type-data")]
-pub enum BinaryOpType {
-    EqEq,
-    /// `!=`
-    NotEq,
-    /// `<`
-    Lt,
-    /// `<=`
-    LtEq,
-    /// `>`
-    Gt,
-    /// `>=`
-    GtEq,
-    /// `+`
-    Add,
-    /// `-`
-    Sub,
-    /// `*`
-    Mul,
-    /// `/`
-    Div,
-    /// `%`
-    Mod,
-    /// `||`
-    LogicalOr,
-    /// `&&`
-    LogicalAnd,
-    /// `??`
-    NullishCoalescing,
-}
-
 
 #[derive(Clone, PartialEq, Debug, Serialize, Eq)]
 pub struct Attribute{
@@ -292,7 +214,8 @@ pub enum Statement {
     Object(ObjectData),
     ObjectValue(ObjectDataValue),
     Scope(ScopeStatement),
-
+    Result(ObjectData),
+    Export (ObjectData)
 
     // Conditional(ConditionStatement),
     // Loop(LoopStatement),

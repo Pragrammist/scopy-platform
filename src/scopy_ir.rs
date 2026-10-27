@@ -4,16 +4,10 @@ use swc_common::{sync::Lrc, SourceMap, FileName};
 use swc_ecma_parser::{Parser, StringInput, Syntax};
 use swc_ecma_parser::lexer::Lexer;
 use swc_ecma_ast::*;
-use swc_common::comments::{CommentKind, Comments, SingleThreadedComments};
+use swc_common::comments::{SingleThreadedComments};
 use std::collections::{HashSet};
-use swc_common::comments::Comment;
 use std::collections::HashMap;
-use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, AstCurrentContext, AstGlobalContext,
-                      Attribute, BinaryObjectValue, BinaryOpType, CodeModuleMetaData, CodeModuleSourceFileType,
-                      ConditionStatement, CurrentContext, CurrentContextType, FunctionCallResultValue, FunctionValue,
-                      GlobalContext, LitValueBool, LitValueNum, LitValueString, LiteralValue, LoopStatement, ModuleContext, ObjectData,
-                      ObjectDataValue, ObjectIdent, ObjectValue, ScopyModule, Statement, ScopeStatement,
-                      ScopyProject, ImportDataValue, ExportDataValue};
+use crate::semantic::{AnotherObjectValue, AnotherObjectValuePath, AstCurrentContext, AstGlobalContext, CodeModuleMetaData, CodeModuleSourceFileType, CurrentContext, CurrentContextType, FunctionCallResultValue, FunctionValue, GlobalContext, LitValueNum, LitValueString, LiteralValue, ModuleContext, ObjectData, ObjectDataValue, ObjectIdent, ObjectValue, ScopyModule, Statement, ScopeStatement, ScopyProject, ImportDataValue, ExportDataValue, FunctionContext};
 use crate::include_build_in_modules::builtin_modules;
 
 macro_rules! compiler_panic {
@@ -235,8 +229,7 @@ pub fn module_parse(ast_current_context: &AstCurrentContext, ast_global_context:
 pub fn parse_module_item(el: &ModuleItem, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> Statement {
     let res_el = match el {
         ModuleItem::ModuleDecl(module_decl) => {
-            let import_stmt = parse_module_decl(module_decl, ctx, glob_ctx);
-            Statement::Object(import_stmt)
+            compiler_panic!(ModuleDeclPanic::ModuleDeclNotSupported)
         },
         ModuleItem::Stmt(stmt) => {
             let p_stmt = parse_stmt(stmt, ctx, glob_ctx, ast_global_context);
@@ -330,55 +323,48 @@ pub fn parse_export_module_name(spec_name: &ModuleExportName) ->ObjectIdent
 }
 
 
-pub fn parse_module_decl(module_decl: &ModuleDecl, ctx: &CurrentContext, glob_ctx: &GlobalContext) -> ObjectData{
-    let stmt = match module_decl{
-        ModuleDecl::Import(import_decl) => {
-            let src = get_import_decl_module_name(import_decl);
-            let imports = parse_import_decl(import_decl, glob_ctx);
-
-            ObjectData{
-                is_mutable: false,
-                name: src,
-                attrs: vec![],
-                value: ObjectDataValue::Import(ImportDataValue{
-                    imports: imports
-                })
-            }
-        },
-        ModuleDecl::ExportNamed(named_export) => {
-            if named_export.src != None
-            {
-                compiler_panic!(ModuleDeclPanic::NotAllowedExport)
-            }
-
-            let imports = named_export.specifiers.iter().map(parse_export_specifier).map(|obj_id| {
-                find_in_context(ctx, obj_id, glob_ctx)
-            }).collect::<Vec<_>>();
-
-
-
-            ObjectData{
-                value: ObjectDataValue::Export(ExportDataValue{
-                    exports: imports
-                }),
-                attrs: vec![],
-                is_mutable: false,
-                name: ctx.current_module_name.clone(),
-            }
-        },
-        ModuleDecl::ExportDecl(_) => compiler_panic!(ModuleDeclPanic::NotNamedExport),
-        ModuleDecl::ExportDefaultDecl(_) => compiler_panic!(ModuleDeclPanic::DefaultExportNotAllowed),
-        ModuleDecl::ExportDefaultExpr(_) => compiler_panic!(ModuleDeclPanic::DefaultExportNotAllowed),
-        ModuleDecl::ExportAll(_) => compiler_panic!(ModuleDeclPanic::ExportAllNotAllowed),
-        ModuleDecl::TsImportEquals(_) => compiler_panic!(ModuleDeclPanic::TsImportEqualsNotAllowed),
-        ModuleDecl::TsExportAssignment(_) => compiler_panic!(ModuleDeclPanic::TsExportAssignmentNotAllowed),
-        ModuleDecl::TsNamespaceExport(_) => compiler_panic!(ModuleDeclPanic::TsNamespaceExportNotAllowed),
-    };
-
-
-    stmt
-
-}
+// pub fn parse_module_decl(module_decl: &ModuleDecl, ctx: &CurrentContext, glob_ctx: &GlobalContext) -> Statement{
+//     let stmt = match module_decl{
+//         ModuleDecl::Import(import_decl) => {
+//             let src = get_import_decl_module_name(import_decl);
+//             let imports = parse_import_decl(import_decl, glob_ctx);
+//
+//             Statement::Object(ObjectData{
+//                 is_mutable: false,
+//                 name: src,
+//                 value: ObjectDataValue::Import(ImportDataValue{
+//                     imports: imports
+//                 })
+//             })
+//         },
+//         ModuleDecl::ExportNamed(named_export) => {
+//             if named_export.src != None
+//             {
+//                 compiler_panic!(ModuleDeclPanic::NotAllowedExport)
+//             }
+//
+//             let exports = named_export.specifiers.iter().map(parse_export_specifier).map(|obj_id| {
+//                 *find_in_context(ctx, obj_id, glob_ctx).obj.clone()
+//             }).collect::<Vec<_>>();
+//
+//
+//             Statement::Export(ExportDataValue{
+//                 exports:exports
+//             })
+//         },
+//         ModuleDecl::ExportDecl(_) => compiler_panic!(ModuleDeclPanic::NotNamedExport),
+//         ModuleDecl::ExportDefaultDecl(_) => compiler_panic!(ModuleDeclPanic::DefaultExportNotAllowed),
+//         ModuleDecl::ExportDefaultExpr(_) => compiler_panic!(ModuleDeclPanic::DefaultExportNotAllowed),
+//         ModuleDecl::ExportAll(_) => compiler_panic!(ModuleDeclPanic::ExportAllNotAllowed),
+//         ModuleDecl::TsImportEquals(_) => compiler_panic!(ModuleDeclPanic::TsImportEqualsNotAllowed),
+//         ModuleDecl::TsExportAssignment(_) => compiler_panic!(ModuleDeclPanic::TsExportAssignmentNotAllowed),
+//         ModuleDecl::TsNamespaceExport(_) => compiler_panic!(ModuleDeclPanic::TsNamespaceExportNotAllowed),
+//     };
+//
+//
+//     stmt
+//
+// }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ModuleDeclPanic {
@@ -395,6 +381,7 @@ pub enum ModuleDeclPanic {
     NotNamedExport,
     StrExportNotAllowed,
     NameSpaceExportNotAllowed,
+    ModuleDeclNotSupported,
 }
 
 impl std::fmt::Display for ModuleDeclPanic {
@@ -411,7 +398,8 @@ impl std::fmt::Display for ModuleDeclPanic {
             ModuleDeclPanic::NotNamedImportNotAllowed => write!(f, "Not named import not allowed"),
             ModuleDeclPanic::StrExportNotAllowed => write!(f, "Str export not allowed"),
             ModuleDeclPanic::ModuleNotFound => write!(f, "Module not found"),
-            ModuleDeclPanic::NameSpaceExportNotAllowed => write!(f, "Namespace export not supported")
+            ModuleDeclPanic::NameSpaceExportNotAllowed => write!(f, "Namespace export not supported"),
+            ModuleDeclPanic::ModuleDeclNotSupported => write!(f, "Module decl not supported"),
         }
     }
 }
@@ -458,16 +446,16 @@ pub fn get_import_decl_module_name(import_decl: &ImportDecl) -> ObjectIdent{
 
 
 
-pub fn parse_import_decl(import_decl: &ImportDecl, glob_ctx: &GlobalContext) -> Vec<AnotherObjectValue>{
-    let imports = import_decl.specifiers.iter().map(parse_import_specifier)
-        .map(|name| {
-            let import_name = get_import_decl_module_name(&import_decl);
-            let module_context = create_context_in_global_context(glob_ctx, &import_name);
-            let export_obj = find_in_context(&module_context, name.clone(), glob_ctx);
-            export_obj
-        }).collect::<Vec<_>>();
-    imports
-}
+// pub fn parse_import_decl(import_decl: &ImportDecl, glob_ctx: &GlobalContext) -> Vec<AnotherObjectValue>{
+//     let imports = import_decl.specifiers.iter().map(parse_import_specifier)
+//         .map(|name| {
+//             let import_name = get_import_decl_module_name(&import_decl);
+//             let module_context = create_context_in_global_context(glob_ctx, &import_name);
+//             let export_obj = find_in_context(&module_context, name.clone(), glob_ctx);
+//             export_obj
+//         }).collect::<Vec<_>>();
+//     imports
+// }
 
 
 
@@ -584,13 +572,13 @@ pub fn parse_stmt(stmt: &Stmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, a
             let stmt = Statement::Scope(scope);
             stmt
         },
-        Stmt::If(if_stmt) => {
+        Stmt::If(_) => {
             // let if_cond = parse_if(if_stmt, ctx, glob_ctx, ast_global_context);
             //
             // Statement::Conditional(if_cond)
             compiler_panic!(StmtPanic::IfStmtNotSupported)
         },
-        Stmt::While(while_stmt) => {
+        Stmt::While(_) => {
             // let loop_s = parse_while(while_stmt, ctx, glob_ctx, ast_global_context);
             // let loop_stmt = Statement::Loop(loop_s);
             // loop_stmt
@@ -601,8 +589,16 @@ pub fn parse_stmt(stmt: &Stmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, a
             match decl{
                 Decl::Var(var_decl) => {
                     let decl = parse_decl(var_decl, ctx, glob_ctx, ast_global_context);
-                    let stmt = Statement::Object(decl);
-                    stmt
+                    let is_result = decl.name == "result".to_string();
+                    if  is_result && let CurrentContextType::FunctionContext(_) = ctx.context_type {
+                        Statement::Result(decl)
+                    }
+                    else if  is_result && let CurrentContextType::ModuleContext(_) = ctx.context_type {
+                        Statement::Export(decl)
+                    }
+                    else {
+                        Statement::Object(decl)
+                    }
                 },
                 Decl::Class(_) => compiler_panic!(StmtPanic::ClassDeclarationNotAllowed),
                 Decl::Fn(_) => compiler_panic!(StmtPanic::FunctionDeclarationNotAllowed),
@@ -680,9 +676,9 @@ pub fn parse_decl(var_decl: &VarDecl, ctx: &CurrentContext, glob_ctx: &GlobalCon
     let val = parse_expr(init, ctx, glob_ctx, ast_global_context);
     let name = parse_pat(&decl.name); // предполагается, что она существует
 
+    
+
     ObjectData {
-        attrs: get_attributes(&decl.span, ast_global_context),
-        is_mutable: false, // пока всегда false
         name:name,
         value: val
     }
@@ -692,160 +688,6 @@ pub fn parse_decl(var_decl: &VarDecl, ctx: &CurrentContext, glob_ctx: &GlobalCon
 
 
 
-#[allow(unused)]
-pub fn has_attribute(
-    attrs: Vec<Attribute>,
-    name: &str,
-    args: Option<&[&str]>,
-) -> bool {
-    attrs.into_iter().any(|attr| {
-        if attr.name != name {
-            return false;
-        }
-
-        match args {
-            None => true,
-            Some(expected) => {
-                if attr.vals.len() != expected.len() {
-                    return false;
-                }
-
-                attr.vals.iter().zip(expected.iter()).all(|(a, b)| a == b)
-            }
-        }
-    })
-}
-
-
-pub fn get_attributes(span: &Span, ast_global_context: &AstGlobalContext) -> Vec<Attribute>{
-    let comment_opt = ast_global_context.comments.get_leading(span.lo());
-    if let Some(vec_comments) = comment_opt{
-        let attrs = parse_attributes_from_comments(vec_comments);
-        attrs
-    }
-    else{
-        Vec::new()
-    }
-}
-
-
-
-
-
-
-
-pub fn parse_attributes_from_comments(comments: Vec<Comment>) -> Vec<Attribute> {
-    let mut result = Vec::new();
-
-    for comment in comments {
-        if comment.kind == CommentKind::Block {
-            continue;
-        }
-        let attrs = parse_attributes(&comment.text);
-        result.extend(attrs);
-    }
-
-    result
-}
-
-
-
-
-
-pub fn parse_attributes(input: &str) -> Vec<Attribute> {
-    let mut result = Vec::new();
-    let mut chars = input.chars().peekable();
-
-    while let Some(c) = chars.peek() {
-        if *c != '@' {
-            chars.next();
-            continue;
-        }
-
-        chars.next(); // skip '@'
-
-        // --- parse name ---
-        let mut name = String::new();
-        while let Some(c) = chars.peek() {
-            if c.is_alphanumeric() || *c == '_' {
-                name.push(*c);
-                chars.next();
-            } else {
-                break;
-            }
-        }
-
-        if chars.peek() != Some(&'(') {
-            continue;
-        }
-        chars.next(); // skip '('
-
-        let mut vals = Vec::new();
-        let mut current = String::new();
-
-        let mut in_string = false;
-        let mut escape = false;
-
-        while let Some(c) = chars.next() {
-            if in_string {
-                if escape {
-                    // обрабатываем escape-последовательности
-                    let real = match c {
-                        'n' => '\n',
-                        't' => '\t',
-                        'r' => '\r',
-                        '\\' => '\\',
-                        '"' => '"',
-                        other => other, // неизвестные просто пропускаем как есть
-                    };
-                    current.push(real);
-                    escape = false;
-                    continue;
-                }
-
-                match c {
-                    '\\' => {
-                        escape = true;
-                    }
-                    '"' => {
-                        in_string = false;
-                    }
-                    _ => {
-                        current.push(c);
-                    }
-                }
-                continue;
-            }
-
-            match c {
-                '"' => {
-                    in_string = true;
-                }
-                ',' => {
-                    let val = current.trim().to_string();
-                    if !val.is_empty() {
-                        vals.push(val);
-                    }
-                    current.clear();
-                }
-                ')' => {
-                    let val = current.trim().to_string();
-                    if !val.is_empty() {
-                        vals.push(val);
-                    }
-                    break;
-                }
-                _ => {
-                    current.push(c);
-                }
-            }
-        }
-
-        result.push(Attribute { name, vals });
-    }
-
-    result
-}
 
 
 pub fn find_in_context(ctx: &CurrentContext, name: ObjectIdent, glob_ctx: &GlobalContext) -> AnotherObjectValue {
@@ -875,9 +717,9 @@ pub fn check_obj_data(object_data: &ObjectData, name: &ObjectIdent) -> Option<Ob
     else if let ObjectDataValue::Import(import) = object_data.value.clone() {
         import.imports.iter().find(|import| import.obj.name == name.clone()).map(|import| *import.obj.clone())
     }
-    else if let ObjectDataValue::Export(import) = object_data.value.clone() {
-        import.exports.iter().find(|export| export.obj.name == name.clone()).map(|export| *export.obj.clone())
-    }
+    // else if let ObjectDataValue::Export(import) = object_data.value.clone() {
+    //     import.exports.iter().find(|export| export.obj.name == name.clone()).map(|export| *export.obj.clone())
+    // }
     else { None }
 }
 
@@ -887,9 +729,11 @@ pub fn find_in_statements(stmt: &Statement, _: &CurrentContext, name: &ObjectIde
             check_obj_data(object_data, name)
         },
         Statement::ObjectValue(_) => None,
-        // Statement::Conditional(_) => None,
-        // Statement::Loop(_) => None,
         Statement::Scope(_) => None,
+        Statement::Result(_) => None,
+        Statement::Export(export) => {
+            check_obj_data(export, name)
+        }
     }
 }
 
@@ -945,6 +789,9 @@ pub enum ExprPanic {
     KeyValuePropNotSupported,
     NotAnotherObjectValueBeforeFunctionCall,
     NotFunctionCallAfterAnotherObjectValue,
+    JsxNotSupported,
+    BoolNotSupported,
+    NullNotSupported,
 }
 
 impl std::fmt::Display for ExprPanic {
@@ -999,6 +846,9 @@ impl std::fmt::Display for ExprPanic {
             ExprPanic::NotFunctionCallAfterAnotherObjectValue => write!(f, "AnotherValue cannot be after AnotherValue after function call"),
             ExprPanic::ImportNotFunction => write!(f, "Export not a function"),
             ExprPanic::ExportNotFunction => write!(f, "Import not a function"),
+            ExprPanic::JsxNotSupported => write!(f, "Jsx not supported not a function"),
+            ExprPanic::BoolNotSupported => write!(f, "Bool not supported"),
+            ExprPanic::NullNotSupported => write!(f, "Null not supported"),
         }
     }
 }
@@ -1012,10 +862,7 @@ pub fn parse_expr(expr:&Expr, ctx: &CurrentContext, glob_ctx: &GlobalContext, as
             let object_val = parse_obj_lit(object_lit, ctx, glob_ctx, ast_global_context);
             ObjectDataValue::Object(object_val)
         },
-        Expr::Bin(bin_expr) => {
-            // let bin_val = parse_bin_expr(bin_expr, ctx, glob_ctx, ast_global_context);
-            // ObjectDataValue::Binary(bin_val)
-
+        Expr::Bin(_) => {
             compiler_panic!(ExprPanic::BinaryOperationNotSupported)
         },
         Expr::Member(member_expr) => {
@@ -1039,7 +886,15 @@ pub fn parse_expr(expr:&Expr, ctx: &CurrentContext, glob_ctx: &GlobalContext, as
             res
         },
         Expr::Arrow(arrow_expr) => {
-            let function = parse_arrow_expr(arrow_expr, ctx, glob_ctx, ast_global_context);
+            let ctx = CurrentContext{
+                prev: Option::from(Box::new(ctx.clone())),
+                current_module_name: ctx.current_module_name.clone(),
+                current_statements: ctx.current_statements.clone(),
+                context_type: CurrentContextType::FunctionContext(FunctionContext{
+                    name: ctx.current_module_name.clone()
+                })
+            };
+            let function = parse_arrow_expr(arrow_expr, &ctx, glob_ctx, ast_global_context);
             ObjectDataValue::Function(function)
         },
         Expr::Call(call_expr) => {
@@ -1147,9 +1002,6 @@ pub fn another_obj_from_member(val: &ObjectDataValue, member_name: &ObjectIdent,
         ObjectDataValue::Import(import) => {
             import.imports.iter().find_map(|m| another_obj_from_member(&m.obj.value, member_name, ctx))
         }
-        ObjectDataValue::Export(export) => {
-            export.exports.iter().find_map(|m| another_obj_from_member(&m.obj.value, member_name, ctx))
-        }
     }
 }
 
@@ -1182,8 +1034,6 @@ pub fn parse_assign_prop(prop: &AssignProp, ctx: &CurrentContext, glob_ctx: &Glo
     let res = ObjectData {
         name: current_object_name,
         value:value,
-        is_mutable: false,
-        attrs: get_attributes(&prop.span(), ast_global_context)
     };
     res
 }
@@ -1194,34 +1044,6 @@ pub fn parse_assign_prop(prop: &AssignProp, ctx: &CurrentContext, glob_ctx: &Glo
 
 pub fn parse_ident_name(ident_name:&IdentName) -> ObjectIdent{
     ident_name.sym.to_string()
-}
-
-pub fn parse_bin_expr(bin_expr: &BinExpr, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> BinaryObjectValue {
-    let left_expr = parse_expr(&bin_expr.left, ctx, glob_ctx, ast_global_context);
-    let right_expr = parse_expr(&bin_expr.right, ctx, glob_ctx, ast_global_context);
-    let op = match bin_expr.op {
-        BinaryOp::EqEq => BinaryOpType::EqEq,
-        BinaryOp::NotEq => BinaryOpType::NotEq,
-        BinaryOp::Lt => BinaryOpType::Lt,
-        BinaryOp::LtEq => BinaryOpType::LtEq,
-        BinaryOp::Gt => BinaryOpType::Gt,
-        BinaryOp::GtEq => BinaryOpType::GtEq,
-        BinaryOp::Add => BinaryOpType::Add,
-        BinaryOp::Sub => BinaryOpType::Sub,
-        BinaryOp::Mul => BinaryOpType::Mul,
-        BinaryOp::Div => BinaryOpType::Div,
-        BinaryOp::Mod => BinaryOpType::Mod,
-        BinaryOp::LogicalAnd => BinaryOpType::LogicalAnd,
-        BinaryOp::LogicalOr => BinaryOpType::LogicalOr,
-        BinaryOp::NullishCoalescing => BinaryOpType::NullishCoalescing,
-        _ => compiler_panic!(ExprPanic::BinaryOperationNotSupported),
-    };
-    let res = BinaryObjectValue{
-        op:op,
-        v1: Box::new(left_expr),
-        v2: Box::new(right_expr)
-    };
-    res
 }
 
 
@@ -1270,8 +1092,6 @@ pub fn parse_pat_as_assign_func_init(pat: &Pat, ctx:&CurrentContext, glob_ctx: &
             ObjectData {
                 value: assign_res,
                 name: name,
-                is_mutable: false,
-                attrs: get_attributes(&assign_pat.span(), ast_global_context)
             }
         },
         Pat::Ident(_) => compiler_panic!(ExprPanic::IdentPatternNotSupported),
@@ -1372,15 +1192,21 @@ pub fn parse_lit_expr(lit_expr: &Lit) -> ObjectDataValue {
                 val: number.value
             }))
         },
-        Lit::BigInt(_big_int) => {
+        Lit::BigInt(_) => {
             compiler_panic!(ExprPanic::BigIntLiteralNotAllowed)
         },
-        Lit::Regex(_regex) => {
+        Lit::Regex(_) => {
             compiler_panic!(ExprPanic::RegexLiteralNotAllowed)
         },
-        Lit::JSXText(_jsxtext) => {
-            todo!()
+        Lit::JSXText(_) => {
+            compiler_panic!(ExprPanic::JsxNotSupported)
         },
+        Lit::Bool(_) => {
+            compiler_panic!(ExprPanic::BoolNotSupported)
+        }
+        Lit::Null(_) => {
+            compiler_panic!(ExprPanic::NullNotSupported)
+        }
     }
 }
 
@@ -1414,7 +1240,6 @@ pub fn create_func_result(val_call: ObjectDataValue, args: Vec<ObjectDataValue>)
         
 
         ObjectDataValue::Import(_) => compiler_panic!(ExprPanic::ImportNotFunction),
-        ObjectDataValue::Export(_) => compiler_panic!(ExprPanic::ExportNotFunction),
     };
     func_call
 }
@@ -1456,8 +1281,6 @@ pub fn func_call_result(another_val: &AnotherObjectValue, args: Vec<ObjectDataVa
             AnotherObjectValue{
                 obj: Box::new(ObjectData {
                     name: another_val.obj.name.clone(),
-                    is_mutable: false,
-                    attrs: another_val.obj.attrs.clone(),
                     value: ObjectDataValue::FunctionCall(func_call.clone())
                 }),
                 path: [another_val.path.clone(), vec![AnotherObjectValuePath::FunctionCall(func_call.clone())]].concat(),
@@ -1469,7 +1292,6 @@ pub fn func_call_result(another_val: &AnotherObjectValue, args: Vec<ObjectDataVa
         ObjectDataValue::FunctionCall(_) => compiler_panic!(ExprPanic::NestedFunctionCallNotAllowed),
 
         ObjectDataValue::Import(_) => compiler_panic!(ExprPanic::ImportNotFunction),
-        ObjectDataValue::Export(_) => compiler_panic!(ExprPanic::ExportNotFunction),
     }
 }
 
@@ -1554,47 +1376,3 @@ pub fn parse_block(block_stmt: &BlockStmt, ctx: &CurrentContext, glob_ctx: &Glob
 }
 
 
-pub fn parse_if(if_stmt: &IfStmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> ConditionStatement {
-
-    let cons_stmt = parse_stmt_as_scope(parse_stmt(&if_stmt.cons, ctx, glob_ctx, ast_global_context));
-
-    let test_expr = parse_expr(&if_stmt.test, ctx, glob_ctx, ast_global_context);
-
-
-
-    let else_stmt = match &if_stmt.alt{
-        Some(r) =>  Some(Box::new(parse_stmt_as_scope(parse_stmt(&r, ctx, glob_ctx, ast_global_context)))),
-        None => None,
-    };
-
-    let cond = ConditionStatement {
-        cond: test_expr,
-        false_scope: else_stmt,
-        true_scope: Box::new(cons_stmt)
-    };
-    cond
-}
-
-pub fn parse_stmt_as_scope(statement: Statement) -> ScopeStatement {
-    match statement {
-        Statement::Scope(scope) => scope,
-        Statement::Object(_) => compiler_panic!(StmtPanic::ObjectNotScope),
-        Statement::ObjectValue(_) => compiler_panic!(StmtPanic::ObjectValueNotScope),
-        // Statement::Conditional(_) => compiler_panic!(StmtPanic::ConditionalNotScope),
-        // Statement::Loop(_) => compiler_panic!(StmtPanic::LoopNotScope),
-        // Statement::Import(_) => compiler_panic!(StmtPanic::ImportNotScope),
-        // Statement::Export(_) => compiler_panic!(StmtPanic::ExportNotScope),
-    }
-}
-
-
-
-pub fn parse_while(while_stm: &WhileStmt, ctx: &CurrentContext, glob_ctx: &GlobalContext, ast_global_context: &AstGlobalContext) -> LoopStatement {
-    let loop_stmt = parse_stmt_as_scope(parse_stmt(&while_stm.body, ctx, glob_ctx, ast_global_context));
-    let cond_val = parse_expr(&while_stm.test, ctx, glob_ctx, ast_global_context);
-    let loop_st = LoopStatement {
-        cond: cond_val,
-        loop_scope: Box::new(loop_stmt)
-    };
-    loop_st
-}
